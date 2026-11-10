@@ -73,6 +73,19 @@ def main():
                     new.append({**e, "ch": ch})
         except Exception as ex:
             notes.append(f"RSS {ch} 실패: {str(ex)[:50]}")
+    # 휴대폰에서 지정한 영상(Actions 수동 실행 입력칸의 URL/ID) 즉시 분석
+    m = re.search(r"(?:v=|youtu\.be/|shorts/|^)([\w-]{11})(?:[?&#]|$)", os.environ.get("VIDEO", "").strip())
+    if m and m.group(1) not in have:
+        vid = m.group(1); title, date, ch = "", time.strftime("%Y-%m-%d"), "etc"
+        try:
+            import yt_dlp
+            with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as y:
+                inf = y.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
+            title = inf.get("title") or ""; d = inf.get("upload_date") or ""; date = f"{d[:4]}-{d[4:6]}-{d[6:]}" if d else date
+            ch = next((k for k, v in CH.items() if v == inf.get("channel_id")), "etc")
+        except Exception as ex:
+            notes.append("지정 영상 메타 조회 실패: " + str(ex)[:50])
+        new.append({"id": vid, "title": title or vid, "date": date, "ch": ch})
     # 제목만 반영돼 있던 영상(sub=0)도 자막으로 보강 재시도
     retry = [r for r in rec.values() if not r.get("sub")][:MAX_SUB]
     todo = (new + [{"id": r["id"], "title": r["title"], "date": r["date"], "ch": r["ch"], "retry": True} for r in retry])[:MAX_SUB + len(new)]

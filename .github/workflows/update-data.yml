@@ -6,7 +6,12 @@ on:
     - cron: '*/5 13-21 * * 1-5'     # 시세만(최단 주기 5분, GitHub 지연 가능)
     - cron: '7,37 12-23 * * 1-5'    # 시세 + 거물 거래(SEC·13F·의원)
     - cron: '0 6 * * *'             # 하루 한 번 전체 재수집
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      video:
+        description: '(선택) 바로 분석할 유튜브 영상 주소 또는 ID — 휴대폰에서 붙여넣기'
+        required: false
+        default: ''
   push:
     branches: [main]
 permissions:
@@ -41,6 +46,7 @@ jobs:
         continue-on-error: true
         env:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          VIDEO: ${{ github.event.inputs.video }}
         run: |
           pip install -q yt-dlp
           python tools/youtube_update.py

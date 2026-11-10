@@ -85,6 +85,11 @@ code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding
 <li>상단 칩: <span class="tag">초록</span> 정상 · <span class="tag w">노랑</span> 지연 · <span class="tag b">빨강</span> 오래됨. 연결이 끊겨도 마지막 정상 데이터로 화면은 유지됩니다.</li></ul>
 <p>신호는 일봉 종가 기준이라 몇 분 지연은 결과에 거의 영향이 없습니다. 장중 값은 “잠정”입니다.</p></section>
 
+<section id="videos"><h2>7-1. 유튜브 새 영상 자동 분석 (PC 불필요)</h2>
+<ul><li><b>자동</b>: GitHub 가 30분마다 두 채널의 새 영상을 찾아(공식 RSS) 자막을 분석하고, 오늘 탭의 <b>두 채널 새 영상</b>과 <b>최근 30일 종목 언급</b>에 반영합니다. 유튜브가 서버 접근을 막으면 우회하지 않고 <b>제목 분석</b>으로 먼저 반영한 뒤 다음 실행에서 자막으로 보강합니다.</li>
+<li><b>휴대폰에서 영상 직접 추가</b>: 휴대폰 브라우저로 GitHub 저장소 → <b>Actions</b> → “자동 갱신 + 배포” → <b>Run workflow</b> → 입력칸에 영상 주소를 붙여넣고 실행. 1~2분 뒤 앱에 반영됩니다.</li>
+<li>영상 분석은 <b>참고 정보</b>이며 매수 점수에는 넣지 않았습니다(영상 이력으로는 검증할 수 없음).</li></ul></section>
+
 <section id="privacy"><h2>8. 개인정보·보안</h2>
 <ul><li>보유·현금·매매 기록은 <b>휴대폰 안(브라우저 저장소)</b>에만 있고 서버·저장소로 전송되지 않습니다.</li>
 <li>사이트에는 공개 시세·공개 공시·코드만 있습니다. SEC 연락처·FMP 키는 GitHub <b>Secrets</b>에만 저장됩니다.</li>
