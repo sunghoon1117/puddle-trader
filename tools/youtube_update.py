@@ -49,16 +49,22 @@ def subtitle_text(vid):
 
 
 def main():
-    kn = None
-    for src in ([f"{SITE}/data/knowledge.json"] if SITE else []) + [PATH]:
+    cands = []
+    for src in ([f"{SITE}/data/knowledge.json"] if SITE else []) + [PATH]:   # 배포본(Actions 가 앞서 반영한 것)과 저장소 파일(PC 가 push 한 것)을 모두 읽어 병합
         try:
-            kn = json.loads(web(src, 30)) if src.startswith("http") else json.load(open(src, encoding="utf8"))
-            break
+            cands.append(json.loads(web(src, 30)) if src.startswith("http") else json.load(open(src, encoding="utf8")))
         except Exception:
             continue
-    if not kn:
+    if not cands:
         print("knowledge.json 없음 — 건너뜀"); return
-    have = {v[0] for v in kn["videos"]}; rec = {r["id"]: r for r in kn.get("recent", [])}
+    kn = max(cands, key=lambda k: k.get("built", ""))
+    vids = {v[0]: v for c in cands for v in c.get("videos", [])}
+    kn["videos"] = list(vids.values())
+    have = set(vids); rec = {}
+    for c in cands:                                           # 같은 영상이면 자막 분석(sub=1)본을 우선
+        for r in c.get("recent", []):
+            if r["id"] not in rec or (r.get("sub") and not rec[r["id"]].get("sub")):
+                rec[r["id"]] = r
     new, notes = [], []
     for ch, cid in CH.items():
         try:
