@@ -1,0 +1,48 @@
+name: 자동 갱신 + 배포
+# PC·Claude 없이 동작: GitHub 가 시세(5분마다·미국 장중)와 거물 거래(30분마다)를 수집해 GitHub Pages 에 배포합니다.
+# 비밀 값(SEC 연락처, FMP 키)은 저장소 Settings → Secrets 에만 두며 사이트/코드에는 포함되지 않습니다.
+on:
+  schedule:
+    - cron: '*/5 13-21 * * 1-5'     # 시세만(최단 주기 5분, GitHub 지연 가능)
+    - cron: '7,37 12-23 * * 1-5'    # 시세 + 거물 거래(SEC·13F·의원)
+    - cron: '0 6 * * *'             # 하루 한 번 전체 재수집
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: 시세·재무 수집 (실패 종목은 기존 값 유지)
+        run: python tools/update_data.py --full
+      - name: 거물 거래 수집 (SEC 가 제한하면 우회하지 않고 이전 데이터 유지)
+        if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
+        continue-on-error: true
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: python tools/tracker_collect.py
+      - name: 개인정보·비밀 점검 후 배포 파일 정리
+        run: |
+          python tools/privacy_check.py
+          mkdir -p _site
+          cp -r index.html guide.html styles.css app.js engine.js bt-worker.js knowledge.js sw.js manifest.webmanifest icon.svg icon-192.png icon-512.png data _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deployment
+        uses: actions/deploy-pages@v4

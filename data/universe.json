@@ -1,0 +1,18 @@
+{
+  "market": ["^VIX", "^VIX3M", "SPY", "QQQ", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLB", "XLU", "XLRE", "XLC", "HYG", "IEF", "TLT"],
+  "watch": [
+    { "sym": "SOXL", "lev": 3, "type": "etf", "beta": 1.3 },
+    { "sym": "USD", "lev": 2, "type": "etf", "beta": 1.3 },
+    { "sym": "TQQQ", "lev": 3, "type": "etf", "beta": 1 },
+    { "sym": "QLD", "lev": 2, "type": "etf", "beta": 1 },
+    { "sym": "QQQ", "lev": 1, "type": "etf", "beta": 1 },
+    { "sym": "SPY", "lev": 1, "type": "etf", "beta": 0.8 },
+    { "sym": "SOXX", "lev": 1, "type": "etf", "beta": 1.3 },
+    { "sym": "NVDA", "lev": 1, "type": "stock", "beta": 1.5 },
+    { "sym": "TSLA", "lev": 1, "type": "stock", "beta": 1.8 },
+    { "sym": "AMZN", "lev": 1, "type": "stock", "beta": 1.2 },
+    { "sym": "MSFT", "lev": 1, "type": "stock", "beta": 1 },
+    { "sym": "META", "lev": 1, "type": "stock", "beta": 1.3 },
+    { "sym": "GOOGL", "lev": 1, "type": "stock", "beta": 1.1 }
+  ]
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="웅덩이">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>웅덩이 트레이더</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="메뉴"><div class="brand">웅덩이 트레이더</div><div id="sideNav" role="tablist"></div></aside>
+  <div>
+    <header class="top">
+      <div class="r1"><h1 id="pageTitle">오늘</h1><button class="fresh" id="fresh" aria-label="데이터 상태 보기"><i></i><span>확인 중</span></button><button class="iconbtn" id="btnRefresh" aria-label="지금 새로고침">↻</button><button class="iconbtn" id="btnSet" aria-label="설정·도움말">⚙</button></div>
+      <div class="seg" id="lensSeg" role="group" aria-label="매매 관점"></div>
+    </header>
+    <div class="ptr" id="ptr">↓ 당겨서 새로고침</div>
+    <main>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <section id="v-today" class="view"></section>
+      <section id="v-stock" class="view"></section>
+      <section id="v-whales" class="view"></section>
+      <section id="v-verify" class="view"></section>
+      <section id="v-acct" class="view"></section>
+      <section id="v-set" class="view"></section>
+      <p class="disclaimer">두 유튜브 채널(developmong·doki_investing)의 공개 영상 관점을 규칙화한 <b>개인용 참고 도구</b>입니다. 과거 검증은 미래 수익을 보장하지 않으며 레버리지 ETF는 원금 대부분을 잃을 수 있습니다. 모든 판단과 책임은 본인에게 있습니다.</p>
+    </main>
+  </div>
+  <nav class="bottom" id="botNav" aria-label="하단 메뉴" role="tablist"></nav>
+</div>
+<div id="modal" class="modal" hidden></div>
+<script src="engine.js"></script>
+<script src="knowledge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
