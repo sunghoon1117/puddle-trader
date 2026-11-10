@@ -16,13 +16,17 @@ PATTERNS = {
 ALLOW_EMAIL = re.compile(r"(me@example\.com|noreply@|@users\.noreply\.github\.com)")
 
 
+SKIP_DIRS = {".wrangler", "node_modules", "__pycache__", ".git"}   # 로컬 전용(git 제외) 캐시
+
+
 def files():
     for p in DEPLOY:
         full = os.path.join(ROOT, p)
         if os.path.isfile(full):
             yield full
         elif os.path.isdir(full):
-            for d, _, fs in os.walk(full):
+            for d, dirs, fs in os.walk(full):
+                dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
                 for f in fs:
                     yield os.path.join(d, f)
 

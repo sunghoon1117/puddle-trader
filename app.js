@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /* 웅덩이 트레이더 v2 — 모바일 우선 · 자동 갱신 · 3관점(웅덩이/도키/통합) · 자동 검증/보정 */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const E = Engine;
@@ -50,7 +50,7 @@ function freshness() {
 }
 
 /* ───────── 시세 수집(다중 경로 · 점진 갱신 · 마지막 정상값 유지) ───────── */
-let LIVE_URL = '';   // 배포 시 data/config.json 에서 읽는 공개 워커 주소(비밀 아님)
+let LIVE_URL = '';   // 배포 시 data/live.json 에서 읽는 공개 워커 주소(비밀 아님)
 const proxyBase = () => (S.settings.proxy || LIVE_URL || '').replace(/\/$/, '');
 async function jget(url, ms = 12000, opt) { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); try { const r = await fetch(url, Object.assign({ signal: c.signal }, opt)); if (!r.ok) throw new Error(r.status); return await r.json(); } finally { clearTimeout(t); } }
 async function putPX(sym, o) { PX[sym] = o; IDB.set('px:' + sym, o); }
@@ -81,6 +81,7 @@ async function syncLive(only) {    // 2순위: 실시간 경로(프록시/직접
 async function refresh(manual) {
   if (busy) return; busy = true; $('#btnRefresh').classList.add('spin');
   try {
+    if (Date.now() - knAt > 20 * 6e4) loadKN(true);   // 새 영상 분석 결과를 20분마다 확인
     let st = await syncStatic(), msg = ''; syncTracker().then(() => { if (view === 'whales') softRender(); });
     const f0 = freshness(), needLive = manual || !st.ok || f0.k !== 'ok' || watchSyms().some(s => !PX[s]);
     if (needLive) {
@@ -260,11 +261,20 @@ function vToday() {
   if (wr.length) h += `<div class="card"><h2>최근 거물 매수 <button class="btn sm" data-v="whales">더 보기</button></h2>${wr.map(x => tradeCard(x.t)).join('')}</div>`;
   if (lastChanges.length) h += `<div class="card"><h2>신호 변화 <span class="muted small">직전 대비</span></h2>` + lastChanges.slice(0, 12).map(c => `<div class="row small" style="padding:3px 0"><b>${esc(c.s)}</b> ${pill(LN[c.L])} ${c.a}차 → <b>${c.b}차</b></div>`).join('') + `</div>`;
   h += `<div class="card"><h2>3관점 한눈에</h2><div class="tw"><table><thead><tr><th>종목</th><th class="n">현재가</th><th class="n">낙폭</th><th class="n" style="color:var(--lp)">웅덩이</th><th class="n" style="color:var(--ld)">도키</th><th class="n" style="color:var(--lc)">통합</th></tr></thead><tbody>${[...items].sort((a, b) => b.lv.lens[L].score - a.lv.lens[L].score).map(x => `<tr class="click" data-go="${esc(x.w.sym)}"><td><b>${esc(x.w.sym)}</b></td><td class="n">${F.usd2(x.lv.price)}</td><td class="n ${cls(FEAT[x.w.sym].F.B.dd.at(-1))}">${F.pct(FEAT[x.w.sym].F.B.dd.at(-1), 0)}</td>${['P', 'D', 'C'].map(k => `<td class="n">${x.lv.lens[k].over ? '<span class="pos" style="color:var(--warn)">과열</span>' : x.lv.lens[k].score + (x.lv.lens[k].k ? '·' + x.lv.lens[k].k + '차' : '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="small muted">점수 0~100. 단계는 검증·자동 보정된 임계값 기준(설정·검증 탭 참고). 오늘 신호는 마지막 봉 기준이며 장중에는 잠정치입니다.</p></div>`;
-  const ks = KN?.stance; if (ks) h += stanceCard(items);
+  if (KN && !KN.none) h += newVideosCard() + stanceCard(items);
   $('#v-today').innerHTML = h;
 }
+function stanceOf(ch) {   // 최근 30일 영상(자동 수집분 포함)에서 종목별 언급·우호/경계 표현 집계
+  const rec = (KN.recent || []).filter(r => r.ch === ch); if (!rec.length) return (KN.stance && KN.stance[ch]) || {};
+  const o = {}, now = Date.now(); rec.filter(r => now - Date.parse(r.date) <= 30 * 864e5).forEach(r => { for (const s in r.t) { const v = o[s] ||= { m30: 0, bull: 0, bear: 0 }; v.m30++; v.bull += r.t[s][1]; v.bear += r.t[s][2]; } }); return o;
+}
+function newVideosCard() {
+  const r = (KN && KN.recent || []).slice(0, 5); if (!r.length) return '';
+  return `<div class="card"><h2>두 채널 새 영상 <span class="muted small">자동 수집·분석${KN.built ? ' · ' + esc(KN.built) : ''}</span></h2>${r.map(v => `<div class="rule"><a href="https://youtu.be/${v.id}" target="_blank" rel="noopener" style="font-size:.9rem">▶ ${esc(v.title)}</a><div class="small muted">${v.ch === 'dm' ? '웅덩이' : '도키'} · ${esc(v.date)} · ${v.sub ? '자막 분석' : '제목 분석'}${Object.keys(v.t).length ? ' · ' + Object.keys(v.t).slice(0, 5).map(s => pill(s)).join(' ') : ''}</div></div>`).join('')}</div>`;
+}
 function stanceCard(items) {
-  const rows = items.map(x => { const a = ks(KN.stance.dm, x.w.sym), b = ks(KN.stance.doki, x.w.sym); return (a || b) ? `<tr><td><b>${esc(x.w.sym)}</b></td><td>${a || '–'}</td><td>${b || '–'}</td></tr>` : ''; }).filter(Boolean).join('');
+  const SM = { dm: stanceOf('dm'), doki: stanceOf('doki') };
+  const rows = items.map(x => { const a = ks(SM.dm, x.w.sym), b = ks(SM.doki, x.w.sym); return (a || b) ? `<tr><td><b>${esc(x.w.sym)}</b></td><td>${a || '–'}</td><td>${b || '–'}</td></tr>` : ''; }).filter(Boolean).join('');
   function ks(o, s) { const v = o && o[s]; if (!v || !v.m30) return ''; return `${v.m30}회${v.bull > v.bear ? ' · <span class="pos">우호</span>' : v.bear > v.bull ? ' · <span class="neg">경계</span>' : ''}`; }
   return rows ? `<div class="card"><h2>두 채널 최근 30일 언급 <span class="muted small">자막 자동 분석</span></h2><div class="tw"><table><thead><tr><th>종목</th><th>웅덩이(dm)</th><th>도키</th></tr></thead><tbody>${rows}</tbody></table></div><p class="small muted">영상 자막에서 종목 언급 빈도와 매수·매도 표현을 센 참고 정보입니다(점수에는 반영하지 않음).</p></div>` : '';
 }
@@ -492,7 +502,8 @@ function whaleCardFor(sym) {
 }
 
 /* ───────── 설정·지식 ───────── */
-async function loadKN() { if (KN) return; try { KN = await jget('data/knowledge.json?t=' + Date.now(), 8000); if (view === 'set' || view === 'today') render(); } catch (e) { KN = { none: true }; } }
+let knAt = 0;
+async function loadKN(force) { if (KN && !force) return; try { KN = await jget('data/knowledge.json?t=' + Date.now(), 12000, { cache: 'no-store' }); knAt = Date.now(); if (view === 'set' || view === 'today') softRender(); } catch (e) { if (!KN) KN = { none: true }; } }
 function vSet() {
   const st = S.settings, f = freshness(); let h = '';
   h += `<div class="card"><h2>데이터 상태 <span class="pill ${f.k === 'ok' ? 'good' : f.k === 'warn' ? 'warn' : 'bad'}">${f.k === 'ok' ? '정상' : f.k === 'warn' ? '지연' : '오래됨'}</span></h2><p class="small muted" style="margin:0 0 8px">${esc(f.d)}</p><dl class="kv"><dt>자동 갱신</dt><dd>${st.auto ? '켜짐 (보는 동안 장중 2분·장외 10분)' : '꺼짐'}</dd><dt>마지막 서버 갱신</dt><dd>${MAN?.updated ? new Date(MAN.updated * 1000).toLocaleString('ko-KR', { hour12: false }) : '–'}</dd><dt>갱신 실패 종목</dt><dd>${(MAN?.fails || []).join(', ') || '없음'}</dd><dt>저장된 종목 수</dt><dd>${Object.keys(PX).length}</dd></dl>
@@ -578,7 +589,7 @@ window.addEventListener('online', () => refresh(false)); window.addEventListener
   const h = location.hash.slice(1).split('/'); if (VIEWS.some(v => v[0] === h[0])) { view = h[0]; if (h[1]) curSym = h[1]; }
   render();
   try { const keys = (await IDB.keys()) || []; await Promise.all(keys.map(async k => { const v = await IDB.get(k); if (!v) return; if (String(k).startsWith('px:')) PX[k.slice(3)] = v; else if (k === 'man') MAN = v; else if (k === 'fund') FUND = v; else if (k === 'bt') RES = v; else if (k === 'tr') TR = v; })); } catch (e) { }
-  try { LIVE_URL = (await jget('data/config.json?t=' + Date.now(), 4000, { cache: 'no-store' })).live || ''; } catch (e) { }
+  try { LIVE_URL = (await jget('data/live.json?t=' + Date.now(), 4000, { cache: 'no-store' })).live || ''; } catch (e) { }
   recompute(); render();                         // 저장된 마지막 데이터로 즉시 표시(오프라인에서도 동작)
   await refresh(false);                           // 이어서 최신화
   setInterval(tick, 60000); setInterval(liveTick, 10000); setInterval(renderFresh, 15000); loadKN();

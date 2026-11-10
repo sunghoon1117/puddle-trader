@@ -39,6 +39,38 @@ BULL = re.compile(r"매수|비중 ?확대|기회|저점|반등|상승|담|모아
 BEAR = re.compile(r"매도|익절|위험|조심|폭락|하락 ?가능|과열|고점|정리")
 
 
+_sigre = {k: re.compile(v) for k, v in SIG.items()}
+_tkre = {k: re.compile(v) for k, v in TICK.items()}
+
+
+def vtt_text(path):
+    seen, out = set(), []
+    for ln in open(path, encoding="utf8", errors="ignore"):
+        ln = re.sub(r"<[^>]+>", "", ln).strip()
+        if not ln or ln.startswith(("WEBVTT", "Kind", "Language")) or "-->" in ln or ln in seen:
+            continue
+        seen.add(ln); out.append(ln)
+    return " ".join(out)
+
+
+def analyze_video(txt, title=""):
+    """한 영상의 종목 언급(문장 수)·우호/경계 표현 수. 자막이 없으면 제목만으로 약식 분석(언급 3으로 간주)."""
+    out = {}
+    if txt:
+        sents = re.split(r"(?<=[.?!])\s+", txt)
+        for t, rx in _tkre.items():
+            hit = [s for s in sents if rx.search(s)]
+            if len(hit) >= 3:
+                out[t] = [len(hit), sum(len(BULL.findall(s)) for s in hit), sum(len(BEAR.findall(s)) for s in hit)]
+    else:
+        for t, rx in _tkre.items():
+            if t in ("QQQ", "SOXX", "SPY"):
+                continue
+            if rx.search(title):
+                out[t] = [3, len(BULL.findall(title)), len(BEAR.findall(title))]
+    return out
+
+
 def main():
     metas = {}
     for f in glob.glob(f"{SUBS}/meta/*.json"):
@@ -57,7 +89,8 @@ def main():
     newest = max(dates) if dates else time.strftime("%Y%m%d")
     cutoff = time.strftime("%Y%m%d", time.localtime(time.mktime(time.strptime(newest, "%Y%m%d")) - 30 * 86400))
     stance = {"dm": defaultdict(lambda: {"m30": 0, "bull": 0, "bear": 0}), "doki": defaultdict(lambda: {"m30": 0, "bull": 0, "bear": 0})}
-    videos = []
+    videos = []; recent = []
+    cut120 = time.strftime("%Y%m%d", time.localtime(time.mktime(time.strptime(newest, "%Y%m%d")) - 120 * 86400))
     for vid, m in metas.items():
         ch = m["ch"]; c = chans[ch]; c["total"] += 1
         d = m.get("date") or ""
@@ -65,6 +98,9 @@ def main():
             c["dates"].append(d)
         videos.append([vid, ch, f"{d[:4]}-{d[4:6]}-{d[6:]}" if d else "", m.get("title") or ""])
         p = f"{SUBS}/txt/{vid}.txt"
+        if d >= cut120:
+            tx = open(p, encoding="utf8").read() if os.path.exists(p) else ""
+            recent.append({"id": vid, "ch": ch, "date": f"{d[:4]}-{d[4:6]}-{d[6:]}", "title": m.get("title") or "", "sub": 1 if tx else 0, "t": analyze_video(tx, m.get("title") or "")})
         if not os.path.exists(p):
             continue
         txt = open(p, encoding="utf8").read()
@@ -88,6 +124,8 @@ def main():
         out["stance"][ch] = {t: dict(v) for t, v in stance[ch].items()}
     videos.sort(key=lambda v: v[2], reverse=True)
     out["videos"] = videos
+    recent.sort(key=lambda v: v["date"], reverse=True)
+    out["recent"] = recent
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(out, open(OUT, "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
     print("영상", len(videos), "자막", {k: v["withSub"] for k, v in out["channels"].items()}, "->", OUT)

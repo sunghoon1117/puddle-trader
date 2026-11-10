@@ -36,6 +36,14 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: python tools/tracker_collect.py
+      - name: 새 영상 자동 분석 (RSS 로 발견 → 자막 분석, 막히면 우회 없이 제목 분석)
+        if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
+        continue-on-error: true
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          pip install -q yt-dlp
+          python tools/youtube_update.py
       - name: 개인정보·비밀 점검 후 배포 파일 정리
         run: |
           python tools/privacy_check.py
