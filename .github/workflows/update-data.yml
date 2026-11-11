@@ -45,6 +45,11 @@ jobs:
         if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
         continue-on-error: true
         run: python tools/calendar_collect.py
+      - name: 공식 거시 데이터 수집 (재무부 금리·FRED, 시간 제한·재시도)
+        if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
+        continue-on-error: true
+        timeout-minutes: 12
+        run: python tools/macro_collect.py
       - name: 새 영상 자동 분석 (RSS 로 발견 → 자막 분석, 막히면 우회 없이 제목 분석)
         if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
         continue-on-error: true
@@ -62,7 +67,7 @@ jobs:
         run: |
           python tools/privacy_check.py
           mkdir -p _site
-          cp -r index.html guide.html styles.css app.js engine.js bt-worker.js knowledge.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png data _site/
+          cp -r index.html guide.html styles.css app.js engine.js bt-worker.js knowledge.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png icon-maskable-512.png data _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }

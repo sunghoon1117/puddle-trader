@@ -339,7 +339,7 @@
     if (e <= -.3 && improving) return 6;
     return 8;
   }
-  E.regime = function (px, fearScore, cnn) {
+  E.regime = function (px, fearScore, cnn, macro) {
     const spy = px.SPY; if (!spy || spy.c.length < 260) return null; const n0 = spy.c.length;
     const calc = off => {
       const val = (s, k) => { const a = px[s]; if (!a || a.c.length < 70) return null; const i = a.c.length - 1 - off - (k || 0); return i >= 0 ? a.c[i] : null; };
@@ -348,7 +348,13 @@
       const ratio = (a, b, k) => { const x = val(a, k), y = val(b, k); return x != null && y ? x / y : null; };
       const sma50 = s => { const a = px[s]; if (!a || a.c.length < 60) return null; const e = a.c.length - off, sl = a.c.slice(Math.max(0, e - 50), e); return sl.reduce((x, y) => x + y, 0) / sl.length; };
       const sma200 = s => { const a = px[s]; if (!a || a.c.length < 210) return null; const e = a.c.length - off, sl = a.c.slice(Math.max(0, e - 200), e); return sl.reduce((x, y) => x + y, 0) / sl.length; };
-      const I = []; const add = (reg, dom, id, label, raw, fmt, score, note) => I.push({ reg, dom, id, label, raw, fmt, score, tag: score == null ? '[확인 불가]' : '[해석]', note: note || '' });
+      const I = []; const add = (reg, dom, id, label, raw, fmt, score, note, official) => I.push({ reg, dom, id, label, raw, fmt, score, tag: score == null ? '[확인 불가]' : official ? '[확인: 공식]' : '[해석]', note: note || '' });
+      // 공식 거시 데이터(재무부·FRED): 기준일 시점까지 '발표된' 값만 사용(발표 지연 반영 → 미래 참조 방지)
+      const adate = (() => { const a = px.SPY; return a.d[a.d.length - 1 - off]; })(), DAY = 864e5;
+      const mxs = id => macro && macro.series && macro.series[id];
+      const mx = (id, back) => { const s = mxs(id); if (!s) return null; const cut = new Date(Date.parse(adate) - ((s.lag || 0) + (back || 0)) * DAY).toISOString().slice(0, 10); let lo = 0, hi = s.d.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (s.d[m] <= cut) { r = m; lo = m + 1; } else hi = m - 1; } return r < 0 ? null : s.v[r]; };
+      const mxAvg = (id, n) => { const s = mxs(id); if (!s) return null; const cut = new Date(Date.parse(adate) - (s.lag || 0) * DAY).toISOString().slice(0, 10); let r = -1; for (let i = s.d.length - 1; i >= 0; i--) if (s.d[i] <= cut) { r = i; break; } if (r < n) return null; let t = 0; for (let i = r - n + 1; i <= r; i++) t += s.v[i]; return t / n; };
+      const hasMx = !!(macro && macro.series && macro.series.T2Y), hasOAS = mx('BAMLH0A0HYM2') != null;
       const f1 = (v, d, u) => v == null ? '–' : (v >= 0 && u !== '%' ? '' : '') + v.toFixed(d == null ? 2 : d) + (u || '');
       const pctS = v => v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
       const ppS = v => v == null ? '–' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%p';
@@ -358,8 +364,14 @@
       add('us', 'liq', 'r5', '미 5년물 금리 3개월 변화', d5, ppS(d5), tri(d5 == null ? null : -d5, .5, .2, -.2, -.5), '정책금리 기대 대용');
       add('us', 'liq', 'dxy', '달러인덱스 3개월 변화', dxy, pctS(dxy), tri(dxy == null ? null : -dxy, .03, .01, -.01, -.03), '달러 약세=글로벌 유동성 우호');
       add('us', 'liq', 'fc', '금융여건(HYG/IEF) 3개월 변화', cr, pctS(cr), tri(cr, .02, .005, -.005, -.02), '신용 선호 개선=우호');
-      add('us', 'liq', 'rr', '실질금리·중앙은행 대차대조표', null, '확인 불가', null, '무료 가격 데이터로는 확인 불가');
-      const curve = val('^TNX') != null && val('^IRX') != null ? val('^TNX') - val('^IRX') : null;
+      if (hasMx) {
+        const t2 = mx('T2Y') != null && mx('T2Y', 91) != null ? mx('T2Y') - mx('T2Y', 91) : null, rr = mx('DFII10') != null && mx('DFII10', 91) != null ? mx('DFII10') - mx('DFII10', 91) : null, wa = mx('WALCL') != null && mx('WALCL', 91) ? mx('WALCL') / mx('WALCL', 91) - 1 : null, nf = mx('NFCI');
+        add('us', 'liq', 't2', '미 2년물 금리 3개월 변화', t2, ppS(t2), tri(t2 == null ? null : -t2, .5, .2, -.2, -.5), '정책금리 기대(재무부 공식)', true);
+        add('us', 'liq', 'real10', '10년 실질금리 3개월 변화', rr, ppS(rr), tri(rr == null ? null : -rr, .4, .15, -.15, -.4), '실질금리 하락=유동성 우호(FRED)', true);
+        add('us', 'liq', 'bs', '연준 대차대조표 3개월 변화', wa, pctS(wa), tri(wa, .02, .005, -.005, -.02), '자산 확대=유동성 공급(FRED)', true);
+        add('us', 'liq', 'nfci', '시카고연은 금융여건지수(NFCI)', nf, f1(nf, 2), tri(nf == null ? null : -nf, .5, .2, -.2, -.5), '음수=평균보다 완화(FRED)', true);
+      } else add('us', 'liq', 'rr', '실질금리·중앙은행 대차대조표', null, '확인 불가', null, '공식 거시 데이터(macro.json)를 불러오지 못함');
+      const curveT = mx('T10Y') != null && mx('T3M') != null ? mx('T10Y') - mx('T3M') : null, curve = curveT != null ? curveT : (val('^TNX') != null && val('^IRX') != null ? val('^TNX') - val('^IRX') : null);
       const cyc = (() => { const a = ['XLY', 'XLI'].map(s => pct(s, 63)), b = ['XLU', 'XLP'].map(s => pct(s, 63)); return a.every(x => x != null) && b.every(x => x != null) ? (a[0] + a[1]) / 2 - (b[0] + b[1]) / 2 : null; })();
       const cg = pct('HG=F', 63) != null && pct('GC=F', 63) != null ? pct('HG=F', 63) - pct('GC=F', 63) : null;
       const sm = pct('IWM', 63) != null && pct('SPY', 63) != null ? pct('IWM', 63) - pct('SPY', 63) : null;
@@ -367,7 +379,12 @@
       add('us', 'econ', 'cyc', '경기민감 vs 방어 업종(3개월 상대)', cyc, pctS(cyc), tri(cyc, .04, .015, -.015, -.04), '경기소비·산업재 − 유틸·필수소비');
       add('us', 'econ', 'cg', '구리/금 3개월 상대', cg, pctS(cg), tri(cg, .05, .02, -.02, -.05), '구리 강세=산업 수요');
       add('us', 'econ', 'sm', '러셀2000 vs S&P500(3개월 상대)', sm, pctS(sm), tri(sm, .03, .01, -.01, -.03), '소형주 강세=경기 낙관');
-      add('us', 'econ', 'pmi', 'PMI·고용·소비·기업이익 전망', null, '확인 불가', null, '공식 경제지표는 앱에서 확인 불가(프롬프트로 별도 확인)');
+      if (hasMx && mxs('ICSA')) {
+        const a4 = mxAvg('ICSA', 4), a26 = mxAvg('ICSA', 26), cl = a4 && a26 ? a4 / a26 - 1 : null, ur = mx('UNRATE') != null && mx('UNRATE', 91) != null ? mx('UNRATE') - mx('UNRATE', 91) : null;
+        add('us', 'econ', 'claims', '신규 실업수당 청구(4주 vs 26주 평균)', cl, pctS(cl), tri(cl == null ? null : -cl, .08, .03, -.03, -.10), '증가=고용 악화(FRED)', true);
+        add('us', 'econ', 'unrate', '실업률 3개월 변화', ur, ppS(ur), tri(ur == null ? null : -ur, .15, .05, -.15, -.3), '상승=경기 둔화(FRED)', true);
+      }
+      add('us', 'econ', 'pmi', 'PMI·소비·기업이익 전망', null, '확인 불가', null, 'ISM PMI·기업이익 전망은 무료 공식 데이터가 없어 확인 불가(프롬프트로 별도 확인)');
       const sec = E.SECT.map(s => { const a = val(s), m = sma50(s); return a != null && m ? a > m : null; }).filter(x => x != null), above = sec.length ? sec.filter(Boolean).length / sec.length : null;
       const eq = pct('RSP', 63) != null && pct('SPY', 63) != null ? pct('RSP', 63) - pct('SPY', 63) : null, s200 = sma200('SPY'), dev = s200 ? val('SPY') / s200 - 1 : null;
       add('us', 'breadth', 'ab50', '50일선 위 섹터 비율(11개 중)', above, above == null ? '–' : (above * 100).toFixed(0) + '%', tri(above, .8, .6, .4, .2), '시장 참여도');
@@ -375,7 +392,11 @@
       add('us', 'breadth', 'd200', 'S&P500 200일선 대비', dev, pctS(dev), tri(dev, .06, .02, -.02, -.06), '추세');
       const hy = ratio('HYG', 'IEF'), hy50 = (() => { const a = px.HYG, b = px.IEF; if (!a || !b || a.c.length < 60 || b.c.length < 60) return null; let s = 0, c = 0; for (let k = 0; k < 50; k++) { const x = a.c[a.c.length - 1 - off - k], y = b.c[b.c.length - 1 - off - k]; if (x && y) { s += x / y; c++; } } return c ? s / c : null; })();
       const hyd = hy && hy50 ? hy / hy50 - 1 : null, vix = val('^VIX'), v3 = val('^VIX3M'), inv = vix && v3 ? vix / v3 : null;
-      add('us', 'credit', 'hy', '하이일드/국채(HYG/IEF) 50일 평균 대비', hyd, pctS(hyd), tri(hyd, .01, .003, -.003, -.01), '신용스프레드 대용');
+      if (hasOAS) {
+        const o = mx('BAMLH0A0HYM2'), o3 = mx('BAMLH0A0HYM2', 91), od = o != null && o3 != null ? o - o3 : null;
+        add('us', 'credit', 'oas', '하이일드 스프레드(OAS) 수준', o, f1(o, 2) + '%', tri(o == null ? null : -o, -3, -4, -5, -6), '낮을수록 신용 안정(FRED·ICE BofA)', true);
+        add('us', 'credit', 'oasd', '하이일드 스프레드 3개월 변화', od, ppS(od), tri(od == null ? null : -od, .4, .15, -.15, -.5), '확대=신용 스트레스(FRED)', true);
+      } else add('us', 'credit', 'hy', '하이일드/국채(HYG/IEF) 50일 평균 대비', hyd, pctS(hyd), tri(hyd, .01, .003, -.003, -.01), '신용스프레드 대용');
       add('us', 'credit', 'vix', 'VIX 수준', vix, f1(vix, 1), tri(vix == null ? null : -vix, -14, -18, -24, -30), '낮을수록 안정');
       add('us', 'credit', 'inv', 'VIX/VIX3M(기간구조)', inv, f1(inv, 2), inv == null ? null : inv >= 1 ? -2 : inv >= .95 ? -1 : inv <= .85 ? 1 : 0, '1 이상=패닉·역전');
       const greed = fearScore == null ? null : 100 - fearScore;
