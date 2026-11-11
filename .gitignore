@@ -6,3 +6,6 @@ _site/
 *.tmp
 .env
 config.json
+
+# 팀 공유 문서는 저장소 밖에 보관
+puddle-trader-guide/
