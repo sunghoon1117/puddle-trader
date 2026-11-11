@@ -5,3 +5,7 @@ workers_dev = true
 
 [ai]
 binding = "AI"
+
+# Gemini API 가 지원하지 않는 지역의 Cloudflare 서버에서 실행되면 "User location is not supported" 오류가 나므로 실행 위치를 미국으로 지정
+[placement]
+region = "aws:us-east-1"

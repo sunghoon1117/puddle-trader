@@ -65,6 +65,40 @@ def subtitle_text(vid):
         return bk.vtt_text(fs[0]) if fs else None
 
 
+AI_TOKEN = os.environ.get("AI_TOKEN", "").strip()
+GV_PROMPT = ('이 영상은 한국어 주식 투자 유튜브 영상이다. 영상에서 실제로 말한 내용만 근거로, 설명 없이 JSON 한 개만 출력하라. '
+             '형식: {"summary":"핵심 내용 2문장(150자 이내, 숫자는 영상에서 말한 것만)","tickers":{"티커":{"mentions":언급횟수,"bull":우호표현수,"bear":경계표현수}}}. '
+             '티커는 영상에서 언급된 미국 종목·ETF의 대문자 티커만(예: SOXL, TSLA, QQQ), 없으면 빈 객체.')
+
+
+def worker_url():
+    try:
+        return json.load(open(os.path.join(ROOT, "data", "live.json"), encoding="utf8")).get("live", "").rstrip("/")
+    except Exception:
+        return ""
+
+
+def gemini_video(vid, text=None):
+    """워커의 Gemini 로 영상을 직접 분석(자막이 막혀도 가능). 토큰이 없으면 None. 반환: (summary, tickers) 또는 None"""
+    base = worker_url()
+    if not AI_TOKEN or not base:
+        return None
+    body = {"system": "당신은 한국어 주식 유튜브 영상 분석가다. 영상(또는 자막)에서 실제로 말한 내용만 쓰고 지어내지 않는다.", "prompt": GV_PROMPT if not text else GV_PROMPT + "\n\n[자막]\n" + text[:14000]}
+    if not text:
+        body["video"] = vid
+    try:
+        req = urllib.request.Request(base + "/api/ai", data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "x-ai-token": AI_TOKEN, "User-Agent": "puddle-trader/1.0"})
+        j = json.loads(urllib.request.urlopen(req, timeout=150).read())
+        if j.get("engine") != "gemini":
+            return None                                   # 무료 대체 AI 는 영상을 못 보므로 사용하지 않음
+        m = re.search(r"\{.*\}", j.get("text", ""), re.S)
+        d = json.loads(m.group(0)) if m else {}
+        tk = {k.upper(): [int(v.get("mentions", 0)), int(v.get("bull", 0)), int(v.get("bear", 0))] for k, v in (d.get("tickers") or {}).items() if re.fullmatch(r"[A-Z]{1,6}", k.upper()) and isinstance(v, dict)}
+        return (str(d.get("summary", ""))[:220], tk)
+    except Exception:
+        return None
+
+
 def main():
     cands = []
     for src in ([f"{SITE}/data/knowledge.json"] if SITE else []) + [PATH]:   # 배포본(Actions 가 앞서 반영한 것)과 저장소 파일(PC 가 push 한 것)을 모두 읽어 병합
@@ -106,13 +140,20 @@ def main():
     # 제목만 반영돼 있던 영상(sub=0)도 자막으로 보강 재시도
     retry = [r for r in rec.values() if not r.get("sub")][:MAX_SUB]
     todo = (new + [{"id": r["id"], "title": r["title"], "date": r["date"], "ch": r["ch"], "retry": True} for r in retry])[:MAX_SUB + len(new)]
-    blocked = 0
+    blocked = 0; gcalls = 0
     for e in todo:
         txt = subtitle_text(e["id"]) if blocked < 2 else None
         if txt is None:
             blocked += 1
-        t = bk.analyze_video(txt or "", e["title"])
-        row = {"id": e["id"], "ch": e["ch"], "date": e["date"], "title": e["title"], "sub": 1 if txt else 0, "t": t}
+        t = bk.analyze_video(txt or "", e["title"]); summ = (rec.get(e["id"]) or {}).get("sum", ""); level = 1 if txt else 0
+        if gcalls < 8 and (not txt or not summ):          # 자막이 없으면 영상을 직접 분석, 자막이 있으면 요약만(무료 한도 보호: 실행당 8회)
+            g = gemini_video(e["id"], txt)
+            gcalls += 1
+            if g:
+                summ = g[0] or summ
+                if not txt and g[1]:
+                    t = g[1]; level = 2                 # 2 = Gemini 영상 분석
+        row = {"id": e["id"], "ch": e["ch"], "date": e["date"], "title": e["title"], "sub": level, "t": t, "sum": summ}
         rec[e["id"]] = row
         if not e.get("retry"):
             kn["videos"].insert(0, [e["id"], e["ch"], e["date"], e["title"]]); have.add(e["id"])

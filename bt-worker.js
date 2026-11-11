@@ -81,6 +81,14 @@ self.onmessage = ev => {
       const fmt = m => Object.fromEntries(Object.entries(m).map(([k, q]) => [k, { n: q.n, win: q.w / q.n, mean: q.s / q.n }]));
       out.regimeBt = { n: bn, from: spy.d[Math.max(startIdx, 300)], base: { win: bw / bn, mean: bm / bn }, us: fmt(by), global: fmt(byG) };
     } catch (e) { out.regimeBt = null; }
+    // 한국 종목 검증: 미국에서 보정된 최종 파라미터를 한국 종목(미국 시장 지표 기준)에 그대로 적용해 기준선과 비교
+    try {
+      const kw = ev.data.krWatch || [];
+      if (kw.length) {
+        const PK = E.prepAll(px, kw, mk, { fearV: base.fearV }), ks = Object.keys(PK); out.kr = { syms: ks, lens: {} };
+        for (const L of ['P', 'D', 'C']) { let e2 = []; for (const s of ks) e2 = e2.concat(E.events(PK[s], E.scores(PK[s], fin)[L], L, fin.thr[L], {})); const sm = E.summarize(e2, PK); out.kr.lens[L] = { n: sm.n, h: sm.h, byK: sm.byK, mae: sm.mae }; }
+      }
+    } catch (e) { out.kr = null; }
     out.edgeP = out.lens.P.edge; out.edgeD = out.lens.D.edge;
     self.postMessage({ type: 'done', result: out });
   } catch (e) { self.postMessage({ type: 'error', msg: String(e && e.message || e) }); }

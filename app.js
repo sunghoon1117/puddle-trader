@@ -226,7 +226,7 @@ function runBacktest() {
     else if (m.type === 'error') { btBusy = false; w.terminate(); setStatus('검증 오류: ' + m.msg); render(); }
   };
   w.onerror = e => { btBusy = false; setStatus('검증 워커 오류: ' + (e.message || '')); render(); };
-  w.postMessage({ px, watch: S.watch.filter(x => PX[x.sym] && !isKR(x.sym)) });
+  w.postMessage({ px, watch: S.watch.filter(x => PX[x.sym] && !isKR(x.sym)), krWatch: S.watch.filter(x => PX[x.sym] && isKR(x.sym)) });
 }
 function updProg() { const b = $('#btBar'); if (b) b.style.width = (btProg * 100) + '%'; const t = $('#btMsg'); if (t) t.textContent = btMsg; }
 
@@ -315,7 +315,7 @@ function stanceOf(ch) {   // 최근 30일 영상(자동 수집분 포함)에서 
 }
 function newVideosCard() {
   const r = (KN && KN.recent || []).slice(0, 5); if (!r.length) return '';
-  return `<div class="card"><h2>두 채널 새 영상 <span class="muted small">자동 수집·분석${KN.built ? ' · ' + esc(KN.built) : ''}</span></h2>${r.map(v => `<div class="rule"><a href="https://youtu.be/${v.id}" target="_blank" rel="noopener" style="font-size:.9rem">▶ ${esc(v.title)}</a><div class="small muted">${v.ch === 'dm' ? '디벨롭' : '도키'} · ${esc(v.date)} · ${v.sub ? '자막 분석' : '제목 분석'}${Object.keys(v.t).length ? ' · ' + Object.keys(v.t).slice(0, 5).map(s => pill(s)).join(' ') : ''}</div></div>`).join('')}</div>`;
+  return `<div class="card"><h2>두 채널 새 영상 <span class="muted small">자동 수집·분석${KN.built ? ' · ' + esc(KN.built) : ''}</span></h2>${r.map(v => `<div class="rule"><a href="https://youtu.be/${v.id}" target="_blank" rel="noopener" style="font-size:.9rem">▶ ${esc(v.title)}</a>${v.sum ? `<div class="small" style="margin:3px 0">${esc(v.sum)}</div>` : ''}<div class="small muted">${v.ch === 'dm' ? '디벨롭' : '도키'} · ${esc(v.date)} · ${v.sub === 2 ? 'Gemini 영상 분석' : v.sub ? '자막 분석' : '제목 분석'}${Object.keys(v.t).length ? ' · ' + Object.keys(v.t).slice(0, 5).map(s => pill(s)).join(' ') : ''}</div></div>`).join('')}</div>`;
 }
 function stanceCard(items) {
   const SM = { dm: stanceOf('dm'), doki: stanceOf('doki') };
@@ -387,6 +387,10 @@ function vVerify() {
     h += `<div class="card"><h2>점수는 믿을 만한가? <span class="muted small">${LN[L]} · 점수대별 60일 뒤 상승 비율</span></h2><div class="tw"><table><thead><tr><th>점수대</th><th class="n">중립 ETF</th><th class="n">내 종목군</th></tr></thead><tbody>${cn2.rows.map((q, i) => `<tr><td>${q.lo}~${Math.min(100, q.hi - 1)}</td><td class="n"><b>${pc(q.win)}</b> <span class="small muted">n≈${Math.round(q.n / 20).toLocaleString()}</span></td><td class="n"><b>${pc(cw.rows[i].win)}</b> <span class="small muted">n≈${Math.round(cw.rows[i].n / 20).toLocaleString()}</span></td></tr>`).join('')}<tr><td class="muted">전체 평균(기준선)</td><td class="n muted">${pc(cn2.base)}</td><td class="n muted">${pc(cw.base)}</td></tr></tbody></table></div>
     <div class="note" style="margin-top:8px"><b>결론:</b> 점수의 <b>크기 자체</b>는 상승 확률과 거의 관계가 없습니다(점수대마다 기준선과 비슷). 과거에 의미가 있었던 건 <b>신호가 처음 켜진 첫 구간</b>(차수별 1회)뿐입니다. 그래서 앱은 <b>신규 신호만 매수</b>로 안내하고, 이미 지속 중인 높은 점수는 “지속”으로 구분합니다. 점수는 <b>‘근거가 몇 개 겹쳤나’를 보여 주는 지표</b>이지 확률이 아닙니다.</div>
     <p class="small muted" style="margin:8px 0 0">n≈는 겹치는 기간을 감안한 대략적 독립 표본 수입니다. 공포지수: ${cc ? '자체 지수와 CNN의 최근 1년 상관 ' + cc.r.toFixed(2) : 'CNN 상관 계산 불가'}.</p></div>`;
+  }
+  if (RES.kr && RES.kr.lens && RES.kr.lens[L]) {
+    const k = RES.kr.lens[L], h60 = k.h[60], h120 = k.h[120];
+    h += `<div class="card"><h2>한국 종목 검증 <span class="muted small">${LN[L]} · ${esc(RES.kr.syms.join(', '))}</span></h2>${k.n >= 5 ? `<dl class="kv"><dt>신호 횟수</dt><dd>${k.n}회</dd><dt>60일 뒤 상승 비율</dt><dd><b>${pc(h60.win)}</b> <span class="muted small">(아무 날 ${pc(h60.baseWin)})</span></dd><dt>60일 평균 수익</dt><dd><b>${F.pct(h60.mean)}</b> <span class="muted small">(아무 날 ${F.pct(h60.baseMean)})</span></dd><dt>120일 뒤 상승 비율</dt><dd>${pc(h120.win)} <span class="muted small">(아무 날 ${pc(h120.baseWin)})</span></dd></dl>` : '<p class="muted small" style="margin:0">신호 표본이 너무 적어(5회 미만) 판단할 수 없습니다.</p>'}<p class="small muted" style="margin:8px 0 0">미국 시장에서 보정한 기준을 <b>미국 시장 지표(VIX·공포지수·섹터)로 그대로</b> 한국 종목 ${RES.kr.syms.length}개에 적용한 결과입니다. 종목 수가 적고 한국 시장 고유 지표가 없어 <b>참고용</b>입니다.</p></div>`;
   }
   const r = RES.lens[L], hz = [20, 60, 120, 250], nl = nu.lens[L];
   h += `<div class="card"><h2 style="color:${LC[L]}">${LN[L]} 관점 상세</h2><h3>보유 기간별 ‘이익 날 확률’ (신호 vs 아무 날 매수)</h3><div class="tw"><table><thead><tr><th>기간</th><th class="n">중립ETF 신호</th><th class="n">기준선</th><th class="n">내 종목군 표본외</th><th class="n">기준선</th><th class="n">평균수익(중립)</th></tr></thead><tbody>${hz.map(z => `<tr><td>${z}일</td><td class="n"><b>${pc(nl.h[z].win)}</b></td><td class="n muted">${pc(nl.h[z].baseWin)}</td><td class="n"><b>${pc(r.oos.h[z].win)}</b></td><td class="n muted">${pc(r.oos.h[z].baseWin)}</td><td class="n">${F.pct(nl.h[z].mean)} <span class="muted small">(${F.pct(nl.h[z].baseMean)})</span></td></tr>`).join('')}</tbody></table></div>

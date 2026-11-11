@@ -7,7 +7,7 @@
   const START = 260;           // 지표 워밍업(52주 창 + 여유)
   const HZ = [20, 60, 120, 250];
   const SECT = ['XLK', 'XLF', 'XLE', 'XLV', 'XLY', 'XLP', 'XLI', 'XLB', 'XLU', 'XLRE', 'XLC'];
-  E.START = START; E.HZ = HZ; E.SECT = SECT; E.VERSION = 5;   // 엔진 로직이 바뀌면 올려서 저장된 검증 결과를 자동 재생성
+  E.START = START; E.HZ = HZ; E.SECT = SECT; E.VERSION = 6;   // 엔진 로직이 바뀌면 올려서 저장된 검증 결과를 자동 재생성
   E.MARKET_SYMS = ['^VIX', '^VIX3M', 'SPY', 'QQQ', 'HYG', 'IEF', 'TLT'].concat(SECT);
 
   /* ── 기본 지표 ── */

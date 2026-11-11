@@ -89,6 +89,11 @@ def main():
     newest = max(dates) if dates else time.strftime("%Y%m%d")
     cutoff = time.strftime("%Y%m%d", time.localtime(time.mktime(time.strptime(newest, "%Y%m%d")) - 30 * 86400))
     stance = {"dm": defaultdict(lambda: {"m30": 0, "bull": 0, "bear": 0}), "doki": defaultdict(lambda: {"m30": 0, "bull": 0, "bear": 0})}
+    prev_sum = {}
+    try:
+        prev_sum = {r['id']: r.get('sum', '') for r in json.load(open(OUT, encoding='utf8')).get('recent', [])}
+    except Exception:
+        pass
     videos = []; recent = []
     cut120 = time.strftime("%Y%m%d", time.localtime(time.mktime(time.strptime(newest, "%Y%m%d")) - 120 * 86400))
     for vid, m in metas.items():
@@ -100,7 +105,7 @@ def main():
         p = f"{SUBS}/txt/{vid}.txt"
         if d >= cut120:
             tx = open(p, encoding="utf8").read() if os.path.exists(p) else ""
-            recent.append({"id": vid, "ch": ch, "date": f"{d[:4]}-{d[4:6]}-{d[6:]}", "title": m.get("title") or "", "sub": 1 if tx else 0, "t": analyze_video(tx, m.get("title") or "")})
+            recent.append({"id": vid, "ch": ch, "date": f"{d[:4]}-{d[4:6]}-{d[6:]}", "title": m.get("title") or "", "sub": 1 if tx else 0, "t": analyze_video(tx, m.get("title") or ""), "sum": prev_sum.get(vid, "")})
         if not os.path.exists(p):
             continue
         txt = open(p, encoding="utf8").read()
