@@ -2,3 +2,6 @@ name = "puddle-quotes"
 main = "proxy.js"
 compatibility_date = "2026-01-01"
 workers_dev = true
+
+[ai]
+binding = "AI"

@@ -14,6 +14,9 @@
     { "sym": "AMZN", "lev": 1, "type": "stock", "beta": 1.2 },
     { "sym": "MSFT", "lev": 1, "type": "stock", "beta": 1 },
     { "sym": "META", "lev": 1, "type": "stock", "beta": 1.3 },
-    { "sym": "GOOGL", "lev": 1, "type": "stock", "beta": 1.1 }
+    { "sym": "GOOGL", "lev": 1, "type": "stock", "beta": 1.1 },
+    { "sym": "005930.KS", "lev": 1, "type": "stock", "beta": 1.1, "name": "삼성전자" },
+    { "sym": "000660.KS", "lev": 1, "type": "stock", "beta": 1.4, "name": "SK하이닉스" },
+    { "sym": "069500.KS", "lev": 1, "type": "etf", "beta": 1, "name": "KODEX 200" }
   ]
 }

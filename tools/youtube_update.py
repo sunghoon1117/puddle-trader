@@ -24,9 +24,26 @@ def web(url, timeout=30):
         return r.read()
 
 
+def feed_fallback(cid):
+    """RSS 가 일시적으로 404/오류일 때: 채널 영상 탭에서 최근 10개를 목록으로만 읽음(우회 아님, 공개 페이지)."""
+    import yt_dlp
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "playlistend": 10}) as y:
+        info = y.extract_info(f"https://www.youtube.com/channel/{cid}/videos", download=False)
+    today = time.strftime("%Y-%m-%d")
+    return [{"id": e["id"], "title": e.get("title") or "", "date": today} for e in (info.get("entries") or []) if e.get("id")]
+
+
 def feed(cid):
     ns = {"a": "http://www.w3.org/2005/Atom", "y": "http://www.youtube.com/xml/schemas/2015"}
-    root = ET.fromstring(web(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"))
+    root = None
+    for i in range(3):                                        # 일시 오류 대비 재시도(점점 길게 대기)
+        try:
+            root = ET.fromstring(web(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"))
+            break
+        except Exception:
+            time.sleep(3 * (i + 1))
+    if root is None:
+        return feed_fallback(cid)
     return [{"id": e.findtext("y:videoId", namespaces=ns), "title": e.findtext("a:title", namespaces=ns) or "", "date": (e.findtext("a:published", namespaces=ns) or "")[:10]} for e in root.findall("a:entry", ns)]
 
 

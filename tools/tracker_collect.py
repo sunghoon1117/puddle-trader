@@ -46,13 +46,17 @@ class SecBlocked(Exception):
     pass
 
 
+class SecCooldown(Exception):
+    pass
+
+
 _last = [0.0]
 
 
 def sec_get(url):
     if not SEC_UA:
         raise SecBlocked("SEC_USER_AGENT 미설정")
-    w = 0.15 - (time.time() - _last[0])
+    w = 0.35 - (time.time() - _last[0])          # 초당 약 3회(SEC 한도 10회보다 훨씬 보수적)
     if w > 0:
         time.sleep(w)
     _last[0] = time.time()
@@ -370,6 +374,8 @@ def main():
     st = {"seen": set(state.get("seen", [])), "f13": prev_from_site("f13.json", {}), "f13seen": state.get("f13seen", {})}
     co = prev_from_site("co.json", {}); cache = prev_from_site("cusip.json", {})
     status = {"updated": int(time.time()), "sec": "skipped", "house": "skip", "fmp": "off", "new": 0, "notes": []}
+    block_until = float(state.get("sec_block_until", 0))   # SEC 가 막으면 6시간 동안 요청 자체를 멈춰 제한이 풀리게 함(재시도 폭주 방지)
+    sec_cooldown = time.time() < block_until
     try:
         status["new"] += poll_house(trades, log); status["house"] = "ok"
     except Exception as e:
@@ -380,6 +386,8 @@ def main():
         except Exception as e:
             status["fmp"] = "error"
     try:
+        if sec_cooldown:
+            raise SecCooldown()
         for e in WATCH:
             status["new"] += poll_person(e, st["seen"], trades, log)
         for fd in FUNDS:
@@ -392,14 +400,17 @@ def main():
                 if c:
                     co[tk] = c
         status["sec"] = "ok"
+    except SecCooldown:
+        status["sec"] = "cooldown"; status["notes"].append("SEC 접근 제한 후 휴지 중(약 %d시간 뒤 재시도) — 이전 데이터 유지" % max(1, round((block_until - time.time()) / 3600)))
     except SecBlocked as e:
-        status["sec"] = "blocked"; status["notes"].append("SEC 접근 제한(%s) — 이전 데이터 유지, 다음 실행에서 재시도" % e)
+        block_until = time.time() + 6 * 3600
+        status["sec"] = "blocked"; status["notes"].append("SEC 접근 제한(%s) — 6시간 쉬었다가 재시도, 이전 데이터 유지" % e)
     except Exception as e:
         status["sec"] = "error"; status["notes"].append("SEC 수집 오류: " + str(e)[:80])
     rows = sorted(trades.values(), key=lambda t: (t.get("filed_at") or "", t.get("trade_date") or ""), reverse=True)[:1500]
     dump = lambda n, o: json.dump(o, open(os.path.join(OUT, n), "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
     dump("trades.json", rows); dump("f13.json", st["f13"]); dump("co.json", co); dump("cusip.json", cache)
-    dump("state.json", {"seen": sorted(st["seen"])[-4000:], "f13seen": st["f13seen"]}); dump("status.json", status)
+    dump("state.json", {"seen": sorted(st["seen"])[-4000:], "f13seen": st["f13seen"], "sec_block_until": block_until if time.time() < block_until else 0}); dump("status.json", status)
     log("거물 거래: %d건 저장, 신규 %d, SEC=%s, 하원=%s, FMP=%s %s" % (len(rows), status["new"], status["sec"], status["house"], status["fmp"], status["notes"]))
 
 

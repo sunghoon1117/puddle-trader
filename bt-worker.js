@@ -68,6 +68,19 @@ self.onmessage = ev => {
     };
     out.curve = { watch: {}, neutral: {} };
     for (const L of ['P', 'D', 'C']) { out.curve.watch[L] = curveOf(P, scsF, L); out.curve.neutral[L] = curveOf(PN, scsN, L); }
+    // 시장 국면 과거 검증: 약 월 1회(21거래일), 그 시점까지의 데이터만으로 국면을 계산 → 이후 S&P500(SPY) 3개월 수익률 비교
+    prog(.98, '시장 국면 과거 검증');
+    try {
+      const spy = px.SPY, cut = (a, date) => { if (!a) return null; let lo = 0, hi = a.d.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (a.d[m] <= date) { r = m; lo = m + 1; } else hi = m - 1; } return r < 0 ? null : { d: a.d.slice(0, r + 1), c: a.c.slice(0, r + 1) }; };
+      const startIdx = spy.d.findIndex(d => d >= '2008-06-01'), by = {}, byG = {}; let bn = 0, bw = 0, bm = 0;
+      for (let i = Math.max(startIdx, 300); i + 64 < spy.d.length; i += 21) {
+        const date = spy.d[i], tp = {}; for (const s in px) { const c = cut(px[s], date); if (c) tp[s] = c; }
+        const R = E.regime(tp, null, false); if (!R) continue; const f = spy.c[i + 64] / spy.c[i + 1] - 1; bn++; if (f > 0) bw++; bm += f;
+        for (const [m, key] of [[by, R.regions.us.phase], [byG, R.regions.global.phase]]) { const q = m[key] ||= { n: 0, w: 0, s: 0 }; q.n++; if (f > 0) q.w++; q.s += f; }
+      }
+      const fmt = m => Object.fromEntries(Object.entries(m).map(([k, q]) => [k, { n: q.n, win: q.w / q.n, mean: q.s / q.n }]));
+      out.regimeBt = { n: bn, from: spy.d[Math.max(startIdx, 300)], base: { win: bw / bn, mean: bm / bn }, us: fmt(by), global: fmt(byG) };
+    } catch (e) { out.regimeBt = null; }
     out.edgeP = out.lens.P.edge; out.edgeD = out.lens.D.edge;
     self.postMessage({ type: 'done', result: out });
   } catch (e) { self.postMessage({ type: 'error', msg: String(e && e.message || e) }); }

@@ -41,6 +41,10 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: python tools/tracker_collect.py
+      - name: 경제 일정 수집 (연준·노동통계국 공식 일정)
+        if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
+        continue-on-error: true
+        run: python tools/calendar_collect.py
       - name: 새 영상 자동 분석 (RSS 로 발견 → 자막 분석, 막히면 우회 없이 제목 분석)
         if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
         continue-on-error: true
