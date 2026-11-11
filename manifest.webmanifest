@@ -1,7 +1,7 @@
 {
-  "name": "웅덩이 트레이더",
-  "short_name": "웅덩이",
-  "description": "웅덩이 매매법·도키 투자 관점의 매매 기준과 추천",
+  "name": "디벨롭",
+  "short_name": "디벨롭",
+  "description": "디벨롭 매매법·도키 투자 관점의 매매 기준과 추천",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

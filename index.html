@@ -6,20 +6,20 @@
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="웅덩이">
+<meta name="apple-mobile-web-app-title" content="디벨롭">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>웅덩이 트레이더</title>
+<title>디벨롭</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app">
-  <aside class="side" aria-label="메뉴"><div class="brand">웅덩이 트레이더</div><div id="sideNav" role="tablist"></div></aside>
+  <aside class="side" aria-label="메뉴"><div class="brand">디벨롭</div><div id="sideNav" role="tablist"></div></aside>
   <div>
     <header class="top">
-      <div class="r1"><h1 id="pageTitle">오늘</h1><button class="fresh" id="fresh" aria-label="데이터 상태 보기"><i></i><span>확인 중</span></button><button class="iconbtn" id="btnRefresh" aria-label="지금 새로고침">↻</button><button class="iconbtn" id="btnSet" aria-label="설정·도움말">⚙</button></div>
+      <div class="r1"><h1 id="pageTitle">오늘</h1><button class="fresh" id="fresh" aria-label="데이터 상태 보기"><i></i><span>확인 중</span></button><button class="iconbtn" id="btnRefresh" aria-label="지금 새로고침">↻</button><button class="iconbtn" id="btnVerify" aria-label="검증">✓</button><button class="iconbtn" id="btnSet" aria-label="설정·도움말">⚙</button></div>
       <div class="seg" id="lensSeg" role="group" aria-label="매매 관점"></div>
     </header>
     <div class="ptr" id="ptr">↓ 당겨서 새로고침</div>
@@ -27,6 +27,7 @@
       <p class="status" id="status" role="status" aria-live="polite"></p>
       <section id="v-today" class="view"></section>
       <section id="v-stock" class="view"></section>
+      <section id="v-market" class="view"></section>
       <section id="v-whales" class="view"></section>
       <section id="v-verify" class="view"></section>
       <section id="v-acct" class="view"></section>

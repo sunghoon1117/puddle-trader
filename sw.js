@@ -1,4 +1,4 @@
-const V = 'pt-v3';
+const V = 'dv-v4';   // 앱 파일이 바뀌면 이 값이 바뀌어 새 서비스 워커로 교체되고, 열려 있는 앱이 자동으로 새로고침됨
 const SHELL = ['./', 'index.html', 'guide.html', 'styles.css', 'app.js', 'engine.js', 'bt-worker.js', 'knowledge.js', 'manifest.webmanifest', 'icon.svg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

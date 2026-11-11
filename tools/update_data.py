@@ -95,7 +95,7 @@ def main():
     args = sys.argv[1:]
     force = "--full" in args
     uni = json.load(open(os.path.join(DATA, "universe.json"), encoding="utf8"))
-    syms = uni["market"] + [w["sym"] for w in uni["watch"]]
+    syms = uni["market"] + uni.get("macro", []) + [w["sym"] for w in uni["watch"]]
     if "--only" in args:
         syms = args[args.index("--only") + 1].split(",")
     os.makedirs(PXD, exist_ok=True)

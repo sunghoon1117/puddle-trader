@@ -50,11 +50,15 @@ jobs:
         run: |
           pip install -q yt-dlp
           python tools/youtube_update.py
+      - name: 앱 버전 파일 생성 (코드가 바뀐 때만 값이 바뀜 → 설치된 앱이 스스로 새로고침)
+        run: |
+          V=$(cat index.html app.js engine.js bt-worker.js styles.css sw.js guide.html manifest.webmanifest | sha256sum | cut -c1-12)
+          echo "{\"v\":\"$V\"}" > version.json
       - name: 개인정보·비밀 점검 후 배포 파일 정리
         run: |
           python tools/privacy_check.py
           mkdir -p _site
-          cp -r index.html guide.html styles.css app.js engine.js bt-worker.js knowledge.js sw.js manifest.webmanifest icon.svg icon-192.png icon-512.png data _site/
+          cp -r index.html guide.html styles.css app.js engine.js bt-worker.js knowledge.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png data _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }

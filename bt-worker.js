@@ -58,6 +58,16 @@ self.onmessage = ev => {
       let ev = []; for (const s in PN) ev = ev.concat(E.events(PN[s], E.scores(PN[s], base)[L], L, base.thr[L], {}));
       const sm = E.summarize(ev, PN); out.neutral.lens[L] = { n: sm.n, h: sm.h, byK: sm.byK, mae: sm.mae };
     }
+    // 점수 신뢰도 곡선: 점수대별로 과거 60일 뒤 올랐던 비율(과열일 제외). 점수가 실제로 확률과 연결되는지 검증
+    prog(.96, '점수 신뢰도 곡선');
+    const B = [[0, 20], [20, 40], [40, 55], [55, 70], [70, 101]], scsN = {}; for (const s in PN) scsN[s] = E.scores(PN[s], base);
+    const curveOf = (Pset, scs, L) => {
+      const o = B.map(([a, b]) => ({ lo: a, hi: b, n: 0, w: 0, m: 0 })); let bn = 0, bw = 0;
+      for (const s in Pset) { const F = Pset[s], sc = scs[s][L], f = F.fwd[60]; for (let i = E.START; i < F.n - 62; i++) { const v = f[i]; if (!isFinite(v) || E.overheated(F, i)) continue; bn++; if (v > 0) bw++; const x = sc[i], k = B.findIndex(([a, b]) => x >= a && x < b); if (k < 0) continue; o[k].n++; if (v > 0) o[k].w++; o[k].m += v; } }
+      return { rows: o.map(q => ({ lo: q.lo, hi: q.hi, n: q.n, win: q.n ? q.w / q.n : null, mean: q.n ? q.m / q.n : null })), base: bn ? bw / bn : null };
+    };
+    out.curve = { watch: {}, neutral: {} };
+    for (const L of ['P', 'D', 'C']) { out.curve.watch[L] = curveOf(P, scsF, L); out.curve.neutral[L] = curveOf(PN, scsN, L); }
     out.edgeP = out.lens.P.edge; out.edgeD = out.lens.D.edge;
     self.postMessage({ type: 'done', result: out });
   } catch (e) { self.postMessage({ type: 'error', msg: String(e && e.message || e) }); }

@@ -1,5 +1,5 @@
-﻿'use strict';
-/* 웅덩이 트레이더 v2 — 모바일 우선 · 자동 갱신 · 3관점(웅덩이/도키/통합) · 자동 검증/보정 */
+'use strict';
+/* 디벨롭 v2 — 모바일 우선 · 자동 갱신 · 3관점(디벨롭/도키/통합) · 자동 검증/보정 */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const E = Engine;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12,7 +12,7 @@ const F = {
   p0: n => n == null || !isFinite(n) ? '–' : (n * 100).toFixed(0) + '%', n1: n => n == null || !isFinite(n) ? '–' : n.toFixed(1)
 };
 const cls = n => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
-const LN = { P: '웅덩이', D: '도키', C: '통합' }, LS = { P: 'developmong', D: 'doki', C: 'P+D 합의' };
+const LN = { P: '디벨롭', D: '도키', C: '통합' }, LS = { P: 'developmong', D: 'doki', C: 'P+D 합의' };
 const LC = { P: 'var(--lp)', D: 'var(--ld)', C: 'var(--lc)' };
 const DEFAULT_WATCH = [['SOXL', 3, 'etf', 1.3], ['USD', 2, 'etf', 1.3], ['TQQQ', 3, 'etf', 1], ['QLD', 2, 'etf', 1], ['QQQ', 1, 'etf', 1], ['SPY', 1, 'etf', .8], ['SOXX', 1, 'etf', 1.3], ['NVDA', 1, 'stock', 1.5], ['TSLA', 1, 'stock', 1.8], ['AMZN', 1, 'stock', 1.2], ['MSFT', 1, 'stock', 1], ['META', 1, 'stock', 1.3], ['GOOGL', 1, 'stock', 1.1]].map(([sym, lev, type, beta]) => ({ sym, lev, type, beta }));
 
@@ -23,7 +23,7 @@ const IDB = (() => {
   return { get: k => tx('readonly', s => s.get(k)), set: (k, v) => { mem[k] = v; return tx('readwrite', s => s.put(v, k)); }, keys: () => tx('readonly', s => s.getAllKeys()) };
 })();
 const KEY = 'pt.v2';
-const DEF = () => ({ settings: { cashTarget: 20, reserve: 10, tranche: [20, 30, 50], maxPos: 30, maxLev: 40, tp: [30, 60, 100], proxy: '', theme: 'auto', lens: 'C', notify: false, auto: true }, watch: DEFAULT_WATCH.map(w => ({ ...w })), holdings: [], cash: 0, journal: [], episodes: {}, tkr: {}, ledger: [], snapPrev: null, snapCur: null });
+const DEF = () => ({ settings: { cashTarget: 20, reserve: 10, tranche: [20, 30, 50], maxPos: 30, maxLev: 40, tp: [30, 60, 100], proxy: '', theme: 'auto', lens: 'C', notify: false, auto: true, fearSrc: 'cnn' }, watch: DEFAULT_WATCH.map(w => ({ ...w })), holdings: [], cash: 0, journal: [], episodes: {}, tkr: {}, ledger: [], snapPrev: null, snapCur: null });
 let S = (() => { try { const j = JSON.parse(localStorage.getItem(KEY)); if (j) return Object.assign(DEF(), j, { settings: Object.assign(DEF().settings, j.settings) }); const o = JSON.parse(localStorage.getItem('pt.v1')); if (o) { const d = DEF(); ['holdings', 'cash', 'journal', 'tkr'].forEach(k => { if (o[k]) d[k] = o[k]; }); return d; } } catch (e) { } return DEF(); })();
 let saveT; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }, 250); };
 
@@ -32,7 +32,7 @@ let PX = {}, MAN = null, FUND = {}, RES = null, KN = null, MK = null; const FEAT
 let view = 'today', curSym = null, range = '1Y', busy = false, btBusy = false, btProg = 0, btMsg = '', lastChanges = [];
 const safe = s => s.replace('^', '_');
 const watchSyms = () => [...new Set([...S.watch.map(w => w.sym), ...S.holdings.map(h => h.sym)])];
-const needSyms = () => [...new Set([...E.MARKET_SYMS, ...watchSyms()])];
+const needSyms = () => [...new Set([...E.MARKET_SYMS, ...E.MACRO_SYMS, ...watchSyms()])];
 const priceOf = sym => { const s = PX[sym]; return s && s.c.length ? s.c.at(-1) : null; };
 const params = () => (RES && RES.params) || E.DEFAULTS();
 
@@ -82,6 +82,7 @@ async function refresh(manual) {
   if (busy) return; busy = true; $('#btnRefresh').classList.add('spin');
   try {
     if (Date.now() - knAt > 20 * 6e4) loadKN(true);   // 새 영상 분석 결과를 20분마다 확인
+    syncCNN().then(ok => { if (ok) { recompute(); softRender(); } });   // CNN 공포탐욕(브라우저 직접 읽기, 5분 간격)
     let st = await syncStatic(), msg = ''; syncTracker().then(() => { if (view === 'whales') softRender(); });
     const f0 = freshness(), needLive = manual || !st.ok || f0.k !== 'ok' || watchSyms().some(s => !PX[s]);
     if (needLive) {
@@ -104,6 +105,15 @@ function tick() {   // 1분마다 가벼운 확인(manifest) — 앱을 켜 두�
   if (document.hidden || !S.settings.auto) return; tickN++;
   const every = marketOpen() ? 2 : 10; if (tickN % every === 0 || tickN === 1) refresh(false); else refreshLight();
 }
+/* 앱 자동 업데이트: 배포 때 코드가 바뀐 경우에만 version.json 값이 바뀜 → 열려 있는 앱이 감지해 스스로 새로고침(입력 중이면 끝난 뒤) */
+let APP_V = null;
+async function checkUpdate() {
+  try {
+    const j = await jget('version.json?t=' + Date.now(), 6000, { cache: 'no-store' }); if (APP_V == null) { APP_V = j.v; return; } if (j.v === APP_V) return;
+    const a = document.activeElement; if ((a && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName)) || !$('#modal').hidden) { setStatus('새 버전이 있습니다. 입력을 마치면 자동으로 적용됩니다.'); return; }
+    setStatus('새 버전으로 업데이트 중…'); try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch (e) { } setTimeout(() => location.reload(), 600);
+  } catch (e) { /* 개발 서버 등 version.json 없음 */ }
+}
 /* 실시간 계층: 장중 20초마다 '배치 API'(PC 서버 또는 내 프록시)로 최근 일봉을 받아 마지막 봉을 갱신. 없으면 조용히 건너뜀(5분 주기 data/ 가 기본) */
 let liveAt = 0, liveBusy = false;
 async function liveTick() {
@@ -123,19 +133,41 @@ async function liveTick() {
 }
 async function refreshLight() { const before = MAN?.updated; try { const m = await jget('data/manifest.json?t=' + Date.now(), 6000, { cache: 'no-store' }); if (m.updated !== before) refresh(false); else renderFresh(); } catch (e) { renderFresh(); } }
 
+/* ───────── CNN 공포탐욕 지수 ─────────
+   CNN 서버는 스크립트·서버(GitHub 등)의 요청을 봇으로 차단하므로, 일반 웹페이지처럼 '사용자 휴대폰 브라우저가 직접' 읽는다(헤더 위장 없음).
+   읽지 못하면 자체 공포지수(가격 기반, 과거 검증됨)로 자동 대체. */
+let CNN = null, cnnTry = 0;
+const CNN_KO = { 'extreme fear': '극단적 공포', fear: '공포', neutral: '중립', greed: '탐욕', 'extreme greed': '극단적 탐욕' };
+const CNN_PARTS = { market_momentum_sp500: '시장 모멘텀(S&P500 vs 125일선)', stock_price_strength: '주가 강도(신고가·신저가)', stock_price_breadth: '주가 폭(거래량)', put_call_options: '풋/콜 옵션', market_volatility_vix: '변동성(VIX)', junk_bond_demand: '정크본드 수요', safe_haven_demand: '안전자산 수요' };
+const cnnLive = () => CNN && S.settings.fearSrc !== 'own' && Date.now() - Date.parse(CNN.t) < 48 * 36e5 ? CNN : null;
+async function syncCNN(force) {
+  if (!force && Date.now() - cnnTry < 5 * 6e4) return; cnnTry = Date.now();
+  try {
+    const j = await jget('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', 12000, { cache: 'no-store' }), fg = j.fear_and_greed; if (!fg || fg.score == null) throw new Error('형식');
+    const parts = {}; for (const k in CNN_PARTS) if (j[k]) parts[k] = { score: j[k].score, rating: j[k].rating };
+    const hist = ((j.fear_and_greed_historical || {}).data || []).map(p => ({ d: new Date(p.x).toISOString().slice(0, 10), v: p.y })).slice(-400);
+    CNN = { score: fg.score, rating: fg.rating, prev: fg.previous_close, w1: fg.previous_1_week, m1: fg.previous_1_month, y1: fg.previous_1_year, t: fg.timestamp, parts, hist }; IDB.set('cnn', CNN); return true;
+  } catch (e) { return false; }
+}
+function cnnCorr() {   // 자체 공포지수(공포=높음)와 CNN(탐욕=높음)의 최근 1년 상관 → 자체 지수가 CNN을 얼마나 닮았는지
+  if (!CNN || !MK || !CNN.hist.length) return null; const own = params().fearV === 2 && MK.fear2 ? MK.fear2 : MK.fear, idx = new Map(MK.d.map((d, i) => [d, i])), xs = [], ys = [];
+  for (const p of CNN.hist) { const i = idx.get(p.d); if (i != null && own[i] != null) { xs.push(100 - p.v); ys.push(own[i]); } } if (xs.length < 60) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length; let sxy = 0, sxx = 0, syy = 0; xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; }); return { r: sxy / Math.sqrt(sxx * syy), n: xs.length };
+}
+
 /* ───────── 분석 ───────── */
 function recompute() {
   try { MK = E.buildMarket(PX); } catch (e) { MK = null; }
   if (!MK) return;
   const qd = PX.QQQ ? (() => { const m = new Map(PX.QQQ.d.map((d, i) => [d, i])); return { byDate: (d, h) => { const j = m.get(d); return j != null && j >= h ? PX.QQQ.c[j] / PX.QQQ.c[j - h] - 1 : null; } }; })() : null;
-  const p = params();
+  const p = params(), cn = cnnLive(), fearOv = cn ? 100 - cn.score : null;
   for (const w of S.watch) {
     const s = PX[w.sym]; if (!s || s.c.length < E.START + 10) { delete LIVE[w.sym]; continue; }
-    const key = w.sym + '|' + s.c.length + '|' + s.d.at(-1) + '|' + s.c.at(-1) + '|' + MK.n + '|' + (MK.vix.at(-1)) + '|' + w.lev + '|' + (params().fearV || 1);
+    const key = w.sym + '|' + s.c.length + '|' + s.d.at(-1) + '|' + s.c.at(-1) + '|' + MK.n + '|' + (MK.vix.at(-1)) + '|' + w.lev + '|' + (params().fearV || 1) + '|' + (fearOv == null ? '-' : Math.round(fearOv));
     let ent = FEAT[w.sym]; if (!ent || ent.key !== key) { const f = E.features(w, s, MK, { qqq: qd, fearV: p.fearV || 1 }); if (!f) { delete LIVE[w.sym]; continue; } ent = FEAT[w.sym] = { key, F: f }; }
     const tk = S.tkr[w.sym] || {}, auto = FUND[w.sym] && FUND[w.sym].fair, man = tk.fv && tk.fv.cf > 0 ? fairManual(tk.fv) : null;
     ent.fair = man || auto || null; ent.fairSrc = man ? '수동' : auto ? '자동(재무)' : null;
-    E.applyLive(ent.F, { fair: ent.fair, resolve: tk.resolve, bad: tk.bad });
+    E.applyLive(ent.F, { fair: ent.fair, resolve: tk.resolve, bad: tk.bad, fear: fearOv });
     LIVE[w.sym] = E.live(ent.F, p);
     for (const L of ['P', 'D', 'C']) if (LIVE[w.sym].lens[L].score < 20) delete S.episodes[w.sym + '|' + L];
   }
@@ -153,7 +185,7 @@ function diffSnap() {
 function trackSignals() {
   const today = etNow().date; let ch = false;
   for (const s in LIVE) for (const L of ['P', 'D', 'C']) {
-    const x = LIVE[s].lens[L]; if (x.k < 1 || x.over) continue;
+    const x = LIVE[s].lens[L]; if (x.k < 1 || x.over || !x.fresh) continue;
     const last = [...S.ledger].reverse().find(e => e.sym === s && e.L === L);
     if (last && (Date.parse(today) - Date.parse(last.date)) / 864e5 < 7 && last.k >= x.k) continue;
     S.ledger.push({ id: today + s + L + x.k, sym: s, L, k: x.k, date: LIVE[s].date, px: LIVE[s].price, score: x.score, ver: RES ? RES.asof : 'default' }); ch = true;
@@ -177,7 +209,7 @@ function maybeBacktest(force) {
 }
 function runBacktest() {
   if (btBusy) return; btBusy = true; btProg = .01; btMsg = '준비 중'; if (view === 'verify') render();
-  const px = {}; for (const s of needSyms()) if (PX[s]) px[s] = { d: PX[s].d, c: PX[s].c };
+  const px = {}; for (const s of [...E.MARKET_SYMS, ...watchSyms()]) if (PX[s]) px[s] = { d: PX[s].d, c: PX[s].c };
   let w; try { w = new Worker('bt-worker.js'); } catch (e) { btBusy = false; setStatus('이 브라우저는 백그라운드 검증을 지원하지 않습니다.'); return; }
   w.onmessage = async ev => {
     const m = ev.data;
@@ -211,11 +243,15 @@ function planFor(sym, L) {
     if (hold && hold.pl > 0 && trimOn) { const t = st.tp.filter(v => hold.pl * 100 >= v).length; if (t) r.lines.push(`보유 수익률 ${F.pct(hold.pl, 0)} — 익절 기준(${st.tp.slice(0, t).join('/')}%) 도달.`); }
     return r;
   }
-  if (x.k === 0) { r.kind = x.score >= 25 ? 'hold' : 'wait'; r.label = x.score >= 25 ? '관찰 — 신호가 아직 덜 겹침' : '관망 — 현금 유지'; r.lines.push(x.score >= 25 ? '웅덩이가 더 깊어지거나 신호가 추가될 때까지 대기.' : '웅덩이 신호가 부족합니다. 아무 때나 사지 않습니다.'); return r; }
+  if (x.k === 0) { r.kind = x.score >= 25 ? 'hold' : 'wait'; r.label = x.score >= 25 ? '관찰 — 신호가 아직 덜 겹침' : '관망 — 현금 유지'; r.lines.push(x.score >= 25 ? '디벨롭가 더 깊어지거나 신호가 추가될 때까지 대기.' : '디벨롭 신호가 부족합니다. 아무 때나 사지 않습니다.'); return r; }
   const names = ['', '1차(소액 탐색)', '2차(비중 확대)', '3차(핵심 — 신호 최강)'];
-  r.kind = 'buy'; r.label = `분할 매수 ${names[x.k]}`; r.lines.push(`겹친 신호 점수 ${x.score}/100`); if (x.note) r.lines.push(x.note);
+  if (!x.fresh) {   // 과거 검증: 점수대별 상승 확률은 거의 차이 없고, '신호가 처음 켜진 구간'에서만 우위가 있었음
+    r.kind = 'hold'; r.label = `신호 지속 중 — 신규 진입 우위 낮음 (${x.k}차 신호 후 ${x.since ?? '?'}일)`;
+    r.lines.push('점수가 높아도 이미 켜진 지 오래된 구간입니다. 과거 검증에서 의미 있는 구간은 신호가 처음 켜진 뒤 약 10거래일 이내였습니다.'); if (x.note) r.lines.push(x.note); return r;
+  }
+  r.kind = 'buy'; r.label = `신규 신호 · 분할 매수 ${names[x.k]}`; r.lines.push(`점수 ${x.score}/100 · 신호 후 ${x.since}일째`); if (x.note) r.lines.push(x.note);
   const cl = confLine(L, x.k); if (cl) r.lines.push('과거 검증: ' + cl);
-  if ((S.episodes[sym + '|' + L] || []).includes(x.k)) { r.kind = 'hold'; r.label = `이번 웅덩이에서 ${x.k}차 이미 집행 — 대기`; r.lines.push('같은 차수는 반복하지 않고 더 강한 신호를 기다립니다.'); return r; }
+  if ((S.episodes[sym + '|' + L] || []).includes(x.k)) { r.kind = 'hold'; r.label = `이번 하락 구간에서 ${x.k}차 이미 집행 — 대기`; r.lines.push('같은 차수는 반복하지 않고 더 강한 신호를 기다립니다.'); return r; }
   if (hold && hold.pl < -.3 && hold.wt > st.maxPos / 100 * .8) { r.kind = 'hold'; r.label = '이미 비중·손실이 큼 — 추가 보류'; r.lines.push('비중이 크고 손실이 크면 늘리지 않습니다(도키 원칙).'); return r; }
   if (!P.eq) { r.lines.push(`가용 현금의 ${st.tranche[x.k - 1]}% 사용 (내 계좌 탭에 현금·보유를 입력하면 금액 계산)`); return r; }
   const dep = Math.max(0, S.cash - P.eq * st.reserve / 100); let amt = dep * st.tranche[x.k - 1] / 100; const cur = hold ? hold.val : 0;
@@ -227,14 +263,14 @@ function planFor(sym, L) {
 }
 
 /* ───────── 공통 UI ───────── */
-const VIEWS = [['today', '◎', '오늘'], ['stock', '⌕', '종목'], ['whales', '◈', '거물'], ['verify', '✓', '검증'], ['acct', '▤', '내 계좌'], ['set', '⚙', '설정']];
-function navHTML() { return VIEWS.filter(v => v[0] !== 'set').map(([k, i, t]) => `<button class="nb" role="tab" data-v="${k}" aria-selected="${k === view}"><span class="ic">${i}</span><span>${t}</span></button>`).join(''); }
+const VIEWS = [['today', '◎', '오늘'], ['stock', '⌕', '종목'], ['market', '◐', '시장'], ['whales', '◈', '거물'], ['acct', '▤', '내 계좌'], ['verify', '✓', '검증'], ['set', '⚙', '설정']];
+function navHTML() { return VIEWS.filter(v => v[0] !== 'set' && v[0] !== 'verify').map(([k, i, t]) => `<button class="nb" role="tab" data-v="${k}" aria-selected="${k === view}"><span class="ic">${i}</span><span>${t}</span></button>`).join(''); }
 function go(v, sym) { view = v; if (sym) curSym = sym; try { history.replaceState(null, '', '#' + v + (sym ? '/' + sym : '')); } catch (e) { } render(); window.scrollTo(0, 0); }
 function openModal(h) { const m = $('#modal'); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${h}</div>`; m.hidden = false; $('input,select', m)?.focus(); }
 const closeModal = () => { $('#modal').hidden = true; $('#modal').innerHTML = ''; };
 const pill = (t, k = '') => `<span class="pill ${k}">${esc(t)}</span>`;
 const ring = (score, L) => `<div class="ring" style="--p:${score};--rc:${LC[L]}"><b>${score}</b></div>`;
-const actPill = (x, p) => p.kind === 'buy' ? pill(x.k + '차 매수', 'good') : p.kind === 'trim' ? pill('과열', 'warn') : p.kind === 'hold' ? pill('관찰') : pill('관망', 'mut');
+const actPill = (x, p) => p.kind === 'buy' ? pill(x.k + '차 매수', 'good') : p.kind === 'trim' ? pill('과열', 'warn') : (p.kind === 'hold' && x.k > 0 && !x.fresh) ? pill('지속', 'mut') : p.kind === 'hold' ? pill('관찰') : pill('관망', 'mut');
 function renderFresh() { const f = freshness(), b = $('#fresh'); b.className = 'fresh ' + f.k; b.innerHTML = `<i></i><span>${esc(f.t)}</span>`; b.title = f.d; }
 function renderSeg() { const L = S.settings.lens; $('#lensSeg').innerHTML = ['P', 'D', 'C'].map(l => `<button data-l="${l}" aria-pressed="${l === L}">${LN[l]}<small>${LS[l]}</small></button>`).join(''); }
 
@@ -245,22 +281,22 @@ function marketNow() {
 }
 function vToday() {
   const L = S.settings.lens, m = marketNow(), items = S.watch.map(w => ({ w, lv: LIVE[w.sym] })).filter(x => x.lv);
-  const mood = !m ? ['데이터 대기', ''] : m.fear >= 70 ? ['공포 — 웅덩이 가능성', 'bad'] : m.fear >= 55 ? ['경계 — 조정 진행', 'warn'] : m.fear <= 25 ? ['탐욕 — 과열 주의', 'warn'] : ['보통', 'good'];
-  let h = `<div class="mk"><div><div class="l">시장 온도</div><div class="v" style="font-size:.95rem">${pill(mood[0], mood[1])}</div></div><div><div class="l">공포지수(자체) 0~100</div><div class="v">${F.n1(m?.fear)}</div></div><div><div class="l">VIX · 기간구조</div><div class="v">${F.n1(m?.vix)} <span class="small muted">${m?.inv ? (m.inv >= 1 ? '역전' : '정상') : ''}</span></div></div><div><div class="l">QQQ 고점대비 · 섹터 -10%↓</div><div class="v">${F.pct(m?.qdd, 0)} <span class="small muted">${F.p0(m?.breadth)}</span></div></div></div>`;
-  const buys = items.filter(x => x.lv.lens[L].k > 0 && !x.lv.lens[L].over).sort((a, b) => b.lv.lens[L].score - a.lv.lens[L].score), trims = items.filter(x => x.lv.lens[L].over), watch = items.filter(x => x.lv.lens[L].k === 0 && !x.lv.lens[L].over && x.lv.lens[L].score >= 25).sort((a, b) => b.lv.lens[L].score - a.lv.lens[L].score);
+  const cn = cnnLive(), fearV = cn ? 100 - cn.score : m?.fear;   // 공포 정도(높을수록 공포)
+  const mood = !m ? ['데이터 대기', ''] : fearV >= 75 ? ['극단적 공포 — 저점 매수 구간 가능성', 'bad'] : fearV >= 55 ? ['공포 — 조정 진행', 'warn'] : fearV <= 25 ? ['극단적 탐욕 — 과열 주의', 'warn'] : fearV <= 45 ? ['탐욕 우세', 'good'] : ['중립', 'good'];
+  let h = `<div class="mk"><div><div class="l">시장 온도</div><div class="v" style="font-size:.95rem">${pill(mood[0], mood[1])}</div></div><div><div class="l">${cn ? 'CNN 공포탐욕 (0=공포·100=탐욕)' : '공포지수(자체) 0=탐욕·100=공포'}</div><div class="v">${cn ? cn.score.toFixed(0) + ' <span class="small muted">' + esc(CNN_KO[cn.rating] || cn.rating) + '</span>' : F.n1(m?.fear)}</div></div><div><div class="l">VIX · 기간구조</div><div class="v">${F.n1(m?.vix)} <span class="small muted">${m?.inv ? (m.inv >= 1 ? '역전' : '정상') : ''}</span></div></div><div><div class="l">QQQ 고점대비 · 섹터 -10%↓</div><div class="v">${F.pct(m?.qdd, 0)} <span class="small muted">${F.p0(m?.breadth)}</span></div></div></div>`;
+  const lv = x => x.lv.lens[L], buys = items.filter(x => lv(x).k > 0 && !lv(x).over && lv(x).fresh).sort((a, b) => lv(b).score - lv(a).score), trims = items.filter(x => lv(x).over), watch = items.filter(x => !lv(x).over && !(lv(x).k > 0 && lv(x).fresh) && (lv(x).k > 0 || lv(x).score >= 25)).sort((a, b) => lv(b).score - lv(a).score).slice(0, 6);
   const card = x => { const p = planFor(x.w.sym, L), l = x.lv.lens[L]; return `<button class="act ${p.kind}" data-go="${esc(x.w.sym)}">${ring(l.score, L)}<div><div class="row"><span class="t">${esc(x.w.sym)}</span>${x.w.lev > 1 ? pill(x.w.lev + 'x', 'warn') : ''}${actPill(l, p)}<span class="sp"></span><span class="b">${F.usd2(x.lv.price)}</span></div><div class="s">${esc(p.label)}${p.amount ? ' · ' + F.usd(p.amount) + ' (' + p.shares + '주)' : ''}</div><div class="three">${['P', 'D', 'C'].map(k => `<span class="${k === L ? 'on' : ''}">${LN[k]} ${x.lv.lens[k].score}${x.lv.lens[k].k ? '·' + x.lv.lens[k].k + '차' : ''}</span>`).join('')}</div></div></button>`; };
   h += `<div class="card" style="margin-top:12px"><h2>오늘의 행동 <span class="pill" style="background:none;color:${LC[L]}">${LN[L]} 관점</span></h2>`;
   if (!items.length) h += `<div class="empty">시세를 받는 중이거나 데이터가 없습니다. 우측 상단 ↻ 를 눌러보세요.</div>`;
   else {
-    h += buys.length ? `<p class="small muted" style="margin:0 0 8px">매수 신호 ${buys.length}개 — 신호가 겹친 구간에서만, 차수별로 나눠서.</p>` + buys.map(card).join('') : `<div class="empty" style="padding:12px">지금은 <b>${LN[L]}</b> 관점에서 신호가 겹친 웅덩이가 없습니다.<br>아무 때나 사지 않고 현금을 지키는 구간입니다.</div>`;
+    h += buys.length ? `<p class="small muted" style="margin:0 0 8px">신규 매수 신호 ${buys.length}개 — 신호가 처음 켜진 구간에서만, 차수별로 나눠서. <a href="#verify" data-v="verify" style="color:var(--info)">점수 신뢰도 보기</a></p>` + buys.map(card).join('') : `<div class="empty" style="padding:12px">지금은 <b>${LN[L]}</b> 관점에서 <b>새로 켜진 매수 신호</b>가 없습니다.<br>아무 때나 사지 않고 현금을 지키는 구간입니다.</div>`;
     if (trims.length) h += `<h3 style="margin:10px 0 8px">과열 — 신규 매수 중단</h3>` + trims.map(card).join('');
-    if (watch.length) h += `<h3 style="margin:10px 0 8px">관찰 대상</h3>` + watch.map(card).join('');
+    if (watch.length) h += `<h3 style="margin:10px 0 8px">관찰·지속 중 <span class="muted small">점수가 높아도 신호가 이미 지속 중이면 신규 진입 우위가 낮습니다</span></h3>` + watch.map(card).join('');
   }
   h += `</div>`;
   const wr = TR.trades.filter(t => t.source !== 'ptr' && t.side === 'BUY' && Date.now() - Date.parse(t.filed_at) < 21 * 864e5).map(t => ({ t, a: analyzeTrade(t, false).score })).sort((x, y) => y.a - x.a).slice(0, 3);
   if (wr.length) h += `<div class="card"><h2>최근 거물 매수 <button class="btn sm" data-v="whales">더 보기</button></h2>${wr.map(x => tradeCard(x.t)).join('')}</div>`;
   if (lastChanges.length) h += `<div class="card"><h2>신호 변화 <span class="muted small">직전 대비</span></h2>` + lastChanges.slice(0, 12).map(c => `<div class="row small" style="padding:3px 0"><b>${esc(c.s)}</b> ${pill(LN[c.L])} ${c.a}차 → <b>${c.b}차</b></div>`).join('') + `</div>`;
-  h += `<div class="card"><h2>3관점 한눈에</h2><div class="tw"><table><thead><tr><th>종목</th><th class="n">현재가</th><th class="n">낙폭</th><th class="n" style="color:var(--lp)">웅덩이</th><th class="n" style="color:var(--ld)">도키</th><th class="n" style="color:var(--lc)">통합</th></tr></thead><tbody>${[...items].sort((a, b) => b.lv.lens[L].score - a.lv.lens[L].score).map(x => `<tr class="click" data-go="${esc(x.w.sym)}"><td><b>${esc(x.w.sym)}</b></td><td class="n">${F.usd2(x.lv.price)}</td><td class="n ${cls(FEAT[x.w.sym].F.B.dd.at(-1))}">${F.pct(FEAT[x.w.sym].F.B.dd.at(-1), 0)}</td>${['P', 'D', 'C'].map(k => `<td class="n">${x.lv.lens[k].over ? '<span class="pos" style="color:var(--warn)">과열</span>' : x.lv.lens[k].score + (x.lv.lens[k].k ? '·' + x.lv.lens[k].k + '차' : '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="small muted">점수 0~100. 단계는 검증·자동 보정된 임계값 기준(설정·검증 탭 참고). 오늘 신호는 마지막 봉 기준이며 장중에는 잠정치입니다.</p></div>`;
   if (KN && !KN.none) h += newVideosCard() + stanceCard(items);
   $('#v-today').innerHTML = h;
 }
@@ -270,13 +306,13 @@ function stanceOf(ch) {   // 최근 30일 영상(자동 수집분 포함)에서 
 }
 function newVideosCard() {
   const r = (KN && KN.recent || []).slice(0, 5); if (!r.length) return '';
-  return `<div class="card"><h2>두 채널 새 영상 <span class="muted small">자동 수집·분석${KN.built ? ' · ' + esc(KN.built) : ''}</span></h2>${r.map(v => `<div class="rule"><a href="https://youtu.be/${v.id}" target="_blank" rel="noopener" style="font-size:.9rem">▶ ${esc(v.title)}</a><div class="small muted">${v.ch === 'dm' ? '웅덩이' : '도키'} · ${esc(v.date)} · ${v.sub ? '자막 분석' : '제목 분석'}${Object.keys(v.t).length ? ' · ' + Object.keys(v.t).slice(0, 5).map(s => pill(s)).join(' ') : ''}</div></div>`).join('')}</div>`;
+  return `<div class="card"><h2>두 채널 새 영상 <span class="muted small">자동 수집·분석${KN.built ? ' · ' + esc(KN.built) : ''}</span></h2>${r.map(v => `<div class="rule"><a href="https://youtu.be/${v.id}" target="_blank" rel="noopener" style="font-size:.9rem">▶ ${esc(v.title)}</a><div class="small muted">${v.ch === 'dm' ? '디벨롭' : '도키'} · ${esc(v.date)} · ${v.sub ? '자막 분석' : '제목 분석'}${Object.keys(v.t).length ? ' · ' + Object.keys(v.t).slice(0, 5).map(s => pill(s)).join(' ') : ''}</div></div>`).join('')}</div>`;
 }
 function stanceCard(items) {
   const SM = { dm: stanceOf('dm'), doki: stanceOf('doki') };
   const rows = items.map(x => { const a = ks(SM.dm, x.w.sym), b = ks(SM.doki, x.w.sym); return (a || b) ? `<tr><td><b>${esc(x.w.sym)}</b></td><td>${a || '–'}</td><td>${b || '–'}</td></tr>` : ''; }).filter(Boolean).join('');
   function ks(o, s) { const v = o && o[s]; if (!v || !v.m30) return ''; return `${v.m30}회${v.bull > v.bear ? ' · <span class="pos">우호</span>' : v.bear > v.bull ? ' · <span class="neg">경계</span>' : ''}`; }
-  return rows ? `<div class="card"><h2>두 채널 최근 30일 언급 <span class="muted small">자막 자동 분석</span></h2><div class="tw"><table><thead><tr><th>종목</th><th>웅덩이(dm)</th><th>도키</th></tr></thead><tbody>${rows}</tbody></table></div><p class="small muted">영상 자막에서 종목 언급 빈도와 매수·매도 표현을 센 참고 정보입니다(점수에는 반영하지 않음).</p></div>` : '';
+  return rows ? `<div class="card"><h2>두 채널 최근 30일 언급 <span class="muted small">자막 자동 분석</span></h2><div class="tw"><table><thead><tr><th>종목</th><th>디벨롭(dm)</th><th>도키</th></tr></thead><tbody>${rows}</tbody></table></div><p class="small muted">영상 자막에서 종목 언급 빈도와 매수·매도 표현을 센 참고 정보입니다(점수에는 반영하지 않음).</p></div>` : '';
 }
 
 /* ───────── 종목 ───────── */
@@ -295,12 +331,12 @@ function vStock() {
   <div class="rec ${p.kind}"><div class="t">${esc(p.label)}</div>${p.lines.map(l => `<div class="small">• ${esc(l)}</div>`).join('')}${p.kind === 'buy' && p.amount ? `<div style="margin-top:6px"><button class="btn pri sm" id="logBuy">이 매수를 기록</button></div>` : ''}</div></div>
   <div class="card"><h2>가격 · 200일선 · 과거 신호(●)<div class="chips">${['6M', '1Y', '3Y', '전체'].map(r => `<button class="chip" style="padding:3px 10px;min-height:30px" data-rng="${r}" aria-pressed="${r === range}">${r}</button>`).join('')}</div></h2><canvas id="cv" role="img" aria-label="${esc(w.sym)} 가격 차트"></canvas><div class="small muted" id="cvInfo">차트를 누르면 값이 표시됩니다 · ●는 이 관점의 과거 매수 신호일(1·2·3차)</div></div>`;
   if (sm) h += `<div class="card"><h2>이 종목에서 ${LN[L]} 관점의 과거 성과</h2><dl class="kv"><dt>신호 횟수</dt><dd>${sm.n}회 (${Fx.d[E.START]} ~)</dd><dt>60일 후 상승 확률</dt><dd>${F.p0(sm.h[60].win)} <span class="muted small">(아무 날 ${F.p0(sm.h[60].baseWin)})</span></dd><dt>60일 평균 수익</dt><dd>${F.pct(sm.h[60].mean)} <span class="muted small">(아무 날 ${F.pct(sm.h[60].baseMean)})</span></dd><dt>120일 후 상승 확률</dt><dd>${F.p0(sm.h[120].win)}</dd><dt>신호 후 60일 내 최대 낙폭(중앙값)</dt><dd class="neg">${F.pct(sm.mae)}</dd></dl><p class="small muted">상승 종목 위주의 과거 구간이라 실제보다 좋게 나올 수 있습니다. 전체 검증은 ‘검증’ 탭.</p></div>`;
-  h += `<div class="card"><h2>${LN[L]} 신호 체크리스트 ${ring(lt.score, L)}</h2>${rows.map(s => `<div class="sig"><span class="dot ${s.type === 'warn' ? 'warn' : ''} ${s.on ? 'on' : ''}"></span><div><div>${esc(s.label)}</div><div class="small muted">${esc(s.detail)}</div></div><span class="pill ${s.on ? (s.type === 'warn' ? 'bad' : 'good') : 'mut'}">${s.na ? '없음' : s.on ? (s.pts > 0 ? '+' : '') + s.pts : '0'}</span></div>`).join('')}${L === 'C' ? '<p class="small muted">통합 = (웅덩이+도키)/2, 두 관점이 모두 기준 이상이면 +8, 한쪽이 매우 낮으면 -8. 위 목록은 웅덩이 관점 기준.</p>' : ''}</div>`;
+  h += `<div class="card"><h2>${LN[L]} 신호 체크리스트 ${ring(lt.score, L)}</h2>${rows.map(s => `<div class="sig"><span class="dot ${s.type === 'warn' ? 'warn' : ''} ${s.on ? 'on' : ''}"></span><div><div>${esc(s.label)}</div><div class="small muted">${esc(s.detail)}</div></div><span class="pill ${s.on ? (s.type === 'warn' ? 'bad' : 'good') : 'mut'}">${s.na ? '없음' : s.on ? (s.pts > 0 ? '+' : '') + s.pts : '0'}</span></div>`).join('')}${L === 'C' ? '<p class="small muted">통합 = (디벨롭+도키)/2, 두 관점이 모두 기준 이상이면 +8, 한쪽이 매우 낮으면 -8. 위 목록은 디벨롭 관점 기준.</p>' : ''}</div>`;
   const fund = FUND[w.sym];
   h += `<div class="card"><h2>적정주가 <span class="muted small">도키: 영업현금흐름 × 성장 × 18배</span></h2>${ent.fair ? `<p style="margin:0 0 8px">적정가 <b>${F.usd2(ent.fair)}</b> (${ent.fairSrc}) · 현재 ${(lv.price / ent.fair * 100).toFixed(0)}%</p>` : '<p class="muted small" style="margin:0 0 8px">자동 재무 데이터가 없는 종목(ETF 등)은 적정가 없이 계산합니다.</p>'}${fund ? `<dl class="kv"><dt>주당 영업현금흐름(${fund.asof})</dt><dd>${F.usd2(fund.cfps)}</dd><dt>과거 연평균 성장(CAGR)</dt><dd>${F.pct(fund.cagr)}</dd><dt>적용 성장률(보수적 5~20%)</dt><dd>${F.pct(fund.g, 0)}</dd><dt>멀티플 · 요구수익률</dt><dd>${fund.mult}배 · ${F.p0(fund.r)}</dd></dl>` : ''}</div>
   ${whaleCardFor(w.sym)}
   <div class="card">
-  <h2 style="margin-top:14px">종목 설정</h2><div class="form"><label class="f">레버리지 배율<select id="sLev">${[1, 2, 3].map(x => `<option ${x === w.lev ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="f">시장 베타<input id="sBeta" inputmode="decimal" value="${w.beta ?? 1}"></label><label class="f">유형<select id="sType"><option value="etf" ${w.type === 'etf' ? 'selected' : ''}>ETF</option><option value="stock" ${w.type === 'stock' ? 'selected' : ''}>개별주</option></select></label></div><div class="row" style="margin-top:10px"><button class="btn sm" id="sSave">저장</button><button class="btn sm" id="resetEp">차수 기록 초기화</button><span class="sp"></span><button class="btn sm danger" id="delSym">삭제</button></div><p class="small muted">이번 웅덩이 집행 차수(${LN[L]}): ${(S.episodes[w.sym + '|' + L] || []).join(', ') || '없음'}</p></div>`;
+  <h2 style="margin-top:14px">종목 설정</h2><div class="form"><label class="f">레버리지 배율<select id="sLev">${[1, 2, 3].map(x => `<option ${x === w.lev ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="f">시장 베타<input id="sBeta" inputmode="decimal" value="${w.beta ?? 1}"></label><label class="f">유형<select id="sType"><option value="etf" ${w.type === 'etf' ? 'selected' : ''}>ETF</option><option value="stock" ${w.type === 'stock' ? 'selected' : ''}>개별주</option></select></label></div><div class="row" style="margin-top:10px"><button class="btn sm" id="sSave">저장</button><button class="btn sm" id="resetEp">차수 기록 초기화</button><span class="sp"></span><button class="btn sm danger" id="delSym">삭제</button></div><p class="small muted">이번 디벨롭 집행 차수(${LN[L]}): ${(S.episodes[w.sym + '|' + L] || []).join(', ') || '없음'}</p></div>`;
   el.innerHTML = h; drawChart(Fx, ev);
 }
 function drawChart(Fx, ev) {
@@ -334,6 +370,12 @@ function vVerify() {
   const nu = RES.neutral;
   h += `<div class="note"><b>먼저 읽어주세요.</b> ① 내 종목군(SOXL·NVDA 등)은 2010년대 이후 크게 오른 <b>생존·상승 종목 위주</b>라 어떤 전략이든 좋아 보이기 쉽습니다. 그래서 같은 종목에서 <b>‘아무 날이나 샀을 때(기준선)’</b>와 비교하고, 지수·섹터 ETF ${nu.n}개(${nu.from}~, 닷컴 붕괴·2008 포함)로 <b>보정 없이 한 번 더</b> 검증했습니다. ② 과거 성과는 미래를 보장하지 않습니다. ③ 영상 속 DB증권 HTS 신호·텔레그램 유료 신호·종목별 재무 이력은 과거 데이터를 구할 수 없어 검증에서 제외했습니다.</div>`;
   h += `<div class="card"><h2>3관점 요약 <span class="muted small">신호 후 60일 상승 확률</span></h2><div class="tw"><table><thead><tr><th>관점</th><th class="n">내 종목군<br>표본외</th><th class="n">기준선</th><th class="n">중립ETF</th><th class="n">기준선</th><th class="n">3차 신호<br>(중립ETF)</th></tr></thead><tbody>${['P', 'D', 'C'].map(k => { const r = RES.lens[k], o = r.oos.h[60], n = nu.lens[k].h[60], k3 = nu.lens[k].byK[3]; return `<tr class="click" data-lens="${k}"><td><b style="color:${LC[k]}">${LN[k]}</b>${r.adopted ? ' <span class="pill good">보정됨</span>' : ''}</td><td class="n">${pc(o.win)}<br><span class="small muted">n=${o.n}</span></td><td class="n muted">${pc(o.baseWin)}</td><td class="n"><b>${pc(n.win)}</b><br><span class="small muted">n=${n.n}</span></td><td class="n muted">${pc(n.baseWin)}</td><td class="n"><b>${pc(k3.win60)}</b><br><span class="small muted">n=${k3.n}</span></td></tr>`; }).join('')}</tbody></table></div><p class="small muted">행을 누르면 그 관점이 선택됩니다. 기준선보다 높아야 ‘신호의 의미’가 있습니다.</p></div>`;
+  if (RES.curve) {
+    const cw = RES.curve.watch[L], cn2 = RES.curve.neutral[L], cc = cnnCorr();
+    h += `<div class="card"><h2>점수는 믿을 만한가? <span class="muted small">${LN[L]} · 점수대별 60일 뒤 상승 비율</span></h2><div class="tw"><table><thead><tr><th>점수대</th><th class="n">중립 ETF</th><th class="n">내 종목군</th></tr></thead><tbody>${cn2.rows.map((q, i) => `<tr><td>${q.lo}~${Math.min(100, q.hi - 1)}</td><td class="n"><b>${pc(q.win)}</b> <span class="small muted">n≈${Math.round(q.n / 20).toLocaleString()}</span></td><td class="n"><b>${pc(cw.rows[i].win)}</b> <span class="small muted">n≈${Math.round(cw.rows[i].n / 20).toLocaleString()}</span></td></tr>`).join('')}<tr><td class="muted">전체 평균(기준선)</td><td class="n muted">${pc(cn2.base)}</td><td class="n muted">${pc(cw.base)}</td></tr></tbody></table></div>
+    <div class="note" style="margin-top:8px"><b>결론:</b> 점수의 <b>크기 자체</b>는 상승 확률과 거의 관계가 없습니다(점수대마다 기준선과 비슷). 과거에 의미가 있었던 건 <b>신호가 처음 켜진 첫 구간</b>(차수별 1회)뿐입니다. 그래서 앱은 <b>신규 신호만 매수</b>로 안내하고, 이미 지속 중인 높은 점수는 “지속”으로 구분합니다. 점수는 <b>‘근거가 몇 개 겹쳤나’를 보여 주는 지표</b>이지 확률이 아닙니다.</div>
+    <p class="small muted" style="margin:8px 0 0">n≈는 겹치는 기간을 감안한 대략적 독립 표본 수입니다. 공포지수: ${cc ? '자체 지수와 CNN의 최근 1년 상관 ' + cc.r.toFixed(2) : 'CNN 상관 계산 불가'}.</p></div>`;
+  }
   const r = RES.lens[L], hz = [20, 60, 120, 250], nl = nu.lens[L];
   h += `<div class="card"><h2 style="color:${LC[L]}">${LN[L]} 관점 상세</h2><h3>보유 기간별 ‘이익 날 확률’ (신호 vs 아무 날 매수)</h3><div class="tw"><table><thead><tr><th>기간</th><th class="n">중립ETF 신호</th><th class="n">기준선</th><th class="n">내 종목군 표본외</th><th class="n">기준선</th><th class="n">평균수익(중립)</th></tr></thead><tbody>${hz.map(z => `<tr><td>${z}일</td><td class="n"><b>${pc(nl.h[z].win)}</b></td><td class="n muted">${pc(nl.h[z].baseWin)}</td><td class="n"><b>${pc(r.oos.h[z].win)}</b></td><td class="n muted">${pc(r.oos.h[z].baseWin)}</td><td class="n">${F.pct(nl.h[z].mean)} <span class="muted small">(${F.pct(nl.h[z].baseMean)})</span></td></tr>`).join('')}</tbody></table></div>
   <h3 style="margin-top:14px">단계별(1·2·3차) 60일 상승 확률 — 신호가 겹칠수록?</h3><div class="tw"><table><thead><tr><th>단계</th><th class="n">중립ETF</th><th class="n">내 종목군(표본외)</th></tr></thead><tbody>${[1, 2, 3].map(k => `<tr><td>${k}차 (임계 ${RES.params.thr[L][k - 1]}점)</td><td class="n"><b>${pc(nl.byK[k].win60)}</b> <span class="small muted">n=${nl.byK[k].n}</span></td><td class="n"><b>${pc(r.oos.byK[k].win60)}</b> <span class="small muted">n=${r.oos.byK[k].n}</span></td></tr>`).join('')}</tbody></table></div>
@@ -354,8 +396,8 @@ function vVerify() {
 function vAcct() {
   const P = portfolio(), st = S.settings, L = S.settings.lens; let h = '';
   const dep = P.eq ? Math.max(0, S.cash - P.eq * st.reserve / 100) : 0;
-  h += `<div class="mk"><div><div class="l">총자산(USD)</div><div class="v">${F.usd(P.eq)}</div></div><div><div class="l">현금 · 비중/목표</div><div class="v">${F.usd(S.cash)} <span class="small muted">${P.cashPct == null ? '' : F.p0(P.cashPct) + '/' + st.cashTarget + '%'}</span></div></div><div><div class="l">웅덩이 가용 현금</div><div class="v">${F.usd(dep)}</div></div><div><div class="l">레버리지 비중/한도</div><div class="v ${P.levPct * 100 > st.maxLev ? 'neg' : ''}">${F.p0(P.levPct)} <span class="small muted">/${st.maxLev}%</span></div></div></div>`;
-  h += `<div class="card" style="margin-top:12px"><h2>보유 종목 <span class="row"><button class="btn sm" id="editCash">현금</button><button class="btn sm pri" id="addHold">＋ 추가</button></span></h2>`;
+  h += `<div class="mk"><div><div class="l">총자산(USD)</div><div class="v">${F.usd(P.eq)}</div></div><div><div class="l">현금 · 비중/목표</div><div class="v">${F.usd(S.cash)} <span class="small muted">${P.cashPct == null ? '' : F.p0(P.cashPct) + '/' + st.cashTarget + '%'}</span></div></div><div><div class="l">디벨롭 가용 현금</div><div class="v">${F.usd(dep)}</div></div><div><div class="l">레버리지 비중/한도</div><div class="v ${P.levPct * 100 > st.maxLev ? 'neg' : ''}">${F.p0(P.levPct)} <span class="small muted">/${st.maxLev}%</span></div></div></div>`;
+  h += `<div class="card" style="margin-top:12px"><div class="note small" style="margin-bottom:10px"><b>이 탭에 입력하면?</b> ① 오늘 카드의 <b>권장 매수 금액·주수</b>를 내 현금·보유 기준으로 계산 ② 단일 종목·레버리지·현금 <b>한도 경고</b> ③ 이미 크게 물린 종목 <b>추가 매수 보류</b> ④ 같은 차수 <b>중복 추천 방지</b>에 쓰입니다. 증권사 연동·자동 매매는 없고, 입력값은 이 휴대폰에만 저장됩니다. 입력하지 않으면 금액 대신 “가용 현금의 몇 %”로만 안내합니다.</div><h2>보유 종목 <span class="row"><button class="btn sm" id="editCash">현금</button><button class="btn sm pri" id="addHold">＋ 추가</button></span></h2>`;
   if (!P.rows.length) h += `<div class="empty">보유 종목이 없습니다. 추가하면 추천이 내 비중·현금에 맞춰 계산됩니다.</div>`;
   else h += `<div class="tw"><table><thead><tr><th>종목</th><th class="n">수량</th><th class="n">평단</th><th class="n">현재</th><th class="n">손익</th><th class="n">비중</th><th>${LN[L]}</th><th></th></tr></thead><tbody>${P.rows.map(r => { const pl = planFor(r.sym, L), lv = LIVE[r.sym]; return `<tr><td><b>${esc(r.sym)}</b></td><td class="n">${r.qty}</td><td class="n">${F.usd2(r.avg)}</td><td class="n">${F.usd2(r.p)}</td><td class="n ${cls(r.pl)}">${F.pct(r.pl)}</td><td class="n">${F.p0(r.wt)}</td><td>${lv && pl ? actPill(lv.lens[L], pl) : '–'}</td><td><button class="btn sm" data-edith="${esc(r.sym)}">수정</button></td></tr>`; }).join('')}</tbody></table></div>`;
   h += `</div><div class="grid g2" style="margin-top:12px"><div class="card"><h2>리스크 점검</h2>`;
@@ -373,7 +415,7 @@ function vAcct() {
   h += `</div></div>`;
   const today = new Date().toISOString().slice(0, 10);
   h += `<div class="card"><h2>매매 기록</h2><div class="form"><label class="f">날짜<input type="date" id="jDate" value="${today}"></label><label class="f">구분<select id="jSide"><option value="buy">매수</option><option value="sell">매도</option></select></label><label class="f">티커<input id="jSym" value="${esc(curSym || '')}" autocapitalize="characters"></label><label class="f">수량<input id="jQty" inputmode="decimal"></label><label class="f">체결가<input id="jPx" inputmode="decimal"></label><label class="f">차수(매수)<select id="jTr"><option value="0">해당 없음</option>${[1, 2, 3].map(x => `<option value="${x}">${x}차</option>`).join('')}</select></label></div><label class="f" style="margin-top:8px">메모<input id="jNote"></label><label class="chk"><input type="checkbox" id="jApply" checked><span>보유·현금에 자동 반영</span></label><button class="btn pri block" id="jAdd">기록</button>
-  ${S.journal.length ? `<div class="tw" style="margin-top:10px"><table><thead><tr><th>날짜</th><th>구분</th><th>종목</th><th class="n">수량</th><th class="n">가격</th><th>차수</th><th></th></tr></thead><tbody>${[...S.journal].reverse().slice(0, 30).map(j => `<tr><td>${esc(j.date.slice(2))}</td><td>${pill(j.side === 'buy' ? '매수' : '매도', j.side === 'buy' ? 'good' : 'warn')}</td><td><b>${esc(j.sym)}</b></td><td class="n">${j.qty}</td><td class="n">${F.usd2(j.px)}</td><td>${j.tr ? j.tr + '차' : '–'}</td><td><button class="btn sm danger" data-jdel="${j.id}" aria-label="삭제">✕</button></td></tr>`).join('')}</tbody></table></div><button class="btn sm" id="jCsv" style="margin-top:8px">CSV 내보내기</button>` : ''}</div>`;
+  ${S.journal.length ? `<div class="tw" style="margin-top:10px"><table><thead><tr><th>날짜</th><th>구분</th><th>종목</th><th class="n">수량</th><th class="n">가격</th><th>차수</th><th></th></tr></thead><tbody>${[...S.journal].reverse().slice(0, 30).map(j => `<tr><td>${esc(j.date.slice(2))}</td><td>${pill(j.side === 'buy' ? '매수' : '매도', j.side === 'buy' ? 'good' : 'warn')}</td><td><b>${esc(j.sym)}</b></td><td class="n">${j.qty}</td><td class="n">${F.usd2(j.px)}</td><td>${j.tr ? j.tr + '차' : '–'}</td><td><button class="btn sm danger" data-jdel="${j.id}" aria-label="삭제">✕</button></td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
   $('#v-acct').innerHTML = h;
 }
 function holdForm(sym) { const h = S.holdings.find(x => x.sym === sym); openModal(`<h2>${h ? esc(sym) + ' 수정' : '보유 종목 추가'}</h2><div class="form"><label class="f">티커<input id="hSym" value="${esc(h?.sym || '')}" ${h ? 'readonly' : ''} autocapitalize="characters"></label><label class="f">수량<input id="hQty" inputmode="decimal" value="${h?.qty ?? ''}"></label><label class="f">평균단가(USD)<input id="hAvg" inputmode="decimal" value="${h?.avg ?? ''}"></label></div><div class="row"><button class="btn pri" id="hSave">저장</button><button class="btn" data-close>취소</button><span class="sp"></span>${h ? '<button class="btn danger" id="hDel">삭제</button>' : ''}</div>`); }
@@ -501,6 +543,53 @@ function whaleCardFor(sym) {
   return `<div class="card"><h2>거물·내부자 거래 <span class="muted small">참고(점수 미반영)</span></h2>${rec.length ? `<p style="margin:0 0 8px">최근 90일 매수 ${buys.length}건 · 매도 ${sells.length}건 · 순액 <b class="${cls(net)}">${net >= 0 ? '+' : '-'}${money(Math.abs(net))}</b></p>` : '<p class="muted small" style="margin:0 0 8px">최근 90일 거래 없음</p>'}${rows.slice(0, 5).map(tradeCard).join('')}${co && co.filings ? `<h3 style="margin:10px 0 6px">SEC 최근 공시</h3>${co.filings.slice(0, 5).map(f => `<div class="row small" style="padding:3px 0"><span class="muted">${esc(f.date)}</span><a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--info)">${esc(f.label)}</a></div>`).join('')}` : ''}<p class="small muted">내부자·기관 거래는 과거 이력이 짧아 앱의 매수 점수에는 넣지 않았습니다(검증 불가). 판단 보조 정보로만 쓰세요.</p></div>`;
 }
 
+/* ───────── 시장 국면 탭 (사용자가 제공한 'V3 투자전략 보고서 프롬프트'의 국면 판별 엔진을 앱 데이터로 구현) ───────── */
+let REG = null, regKey = '', MPROMPT = null, mRegion = 'global';
+const MKT_ROWS = [['KOSPI', '^KS11'], ['KOSDAQ', '^KQ11'], ['S&P500(SPY)', 'SPY'], ['나스닥(QQQ)', 'QQQ'], ['러셀2000(IWM)', 'IWM'], ['필라델피아 반도체(SOX)', '^SOX'], ['VIX', '^VIX'], ['미 10년물 금리', '^TNX', 'y'], ['미 5년물 금리', '^FVX', 'y'], ['미 3개월물 금리', '^IRX', 'y'], ['달러인덱스(DXY)', 'DX-Y.NYB'], ['원/달러', 'KRW=X'], ['WTI 원유', 'CL=F'], ['금', 'GC=F'], ['구리', 'HG=F']];
+const gradeOf = v => v == null ? ['확인 불가', 'mut'] : v >= 1 ? ['긍정', 'good'] : v > .3 ? ['완만한 긍정', 'good'] : v >= -.3 ? ['중립·혼재', ''] : v > -1 ? ['완만한 부정', 'warn'] : ['부정', 'bad'];
+function calcRegime() {
+  const cn = cnnLive(), fs = cn ? 100 - cn.score : (MK ? MK.fear.at(-1) : null), key = (PX.SPY ? PX.SPY.d.at(-1) + PX.SPY.c.at(-1) : '') + '|' + (fs == null ? '-' : Math.round(fs)) + '|' + Object.keys(PX).length;
+  if (key === regKey && REG) return REG; try { REG = E.regime(PX, fs, !!cn); regKey = key; } catch (e) { REG = null; } return REG;
+}
+const sentOf = (name, r) => `현재 ${name} 시장은 <b>${esc(REG.phaseNames[r.phase])}</b>에 있으며, 가장 중요한 근거는 ${(r.keys || []).map(x => esc(x.label) + ' ' + esc(x.fmt)).join(' · ') || '뚜렷한 근거 부족'}입니다. 다음 국면으로 전환될 가능성은 <b>${esc(r.trans.replace('전환 가능성 ', '').replace('전환 확인', '전환 확인'))}</b>이며, 이를 확인할 핵심 변수는 ${(r.keys || []).map(x => esc(x.label)).join(', ') || '–'}입니다.`;
+function mktTable() {
+  return MKT_ROWS.map(([nm, s, kind]) => { const a = PX[s]; if (!a || a.c.length < 70) return [nm, s, null]; const c = a.c, n = c.length, last = c[n - 1], ch = k => kind === 'y' ? last - c[n - 1 - k] : last / c[n - 1 - k] - 1; return [nm, s, { last, d1: ch(1), m1: ch(21), m3: ch(63), date: a.d[n - 1], y: kind === 'y' }]; });
+}
+function vMarket() {
+  const R = calcRegime(), el = $('#v-market'), cn = cnnLive() || CNN; let h = '';
+  if (!R) { el.innerHTML = '<div class="empty">시장 데이터를 불러오는 중입니다. 잠시 후 다시 확인하세요.</div>'; return; }
+  const us = R.regions.us, kr = R.regions.kr, gl = R.regions.global, cur = R.regions[mRegion];
+  h += `<div class="card"><h2>시장 국면 판별 <span class="muted small">기준 ${esc(R.asof)} 종가 · KST ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false })}</span></h2>
+    ${[['global', '글로벌', gl], ['us', '미국', us], ['kr', '한국', kr]].map(([k, nm, r]) => `<div class="rule"><div class="row"><b>${nm}</b>${pill(R.phaseNames[r.phase], r.phase === 1 ? 'good' : [4, 5].includes(r.phase) ? 'bad' : r.phase === 8 ? 'mut' : 'warn')}${r.sub ? '<span class="small muted">보조: ' + esc(R.phaseNames[r.sub]) + '</span>' : ''}<span class="sp"></span>${pill('신뢰도 ' + r.confText, r.confText === '낮음' ? 'warn' : 'mut')}</div><div class="small" style="margin-top:4px">${sentOf(nm, r)}</div><div class="small muted">${esc(R.phaseNotes[r.phase])}</div></div>`).join('')}
+    <div class="note small" style="margin-top:8px">앱은 <b>가격으로 계산 가능한 지표</b>만 씁니다. PMI·고용·기업이익 전망·외국인 수급·풋콜 등은 <b>‘확인 불가’</b>로 표시하고 신뢰도를 낮췄습니다(‘높음’은 부여하지 않음). 국면 분류는 판단의 출발점이며 자동 매매 규칙이 아닙니다. 이 국면은 매수 점수에 반영되지 않고 <b>상황 판단용 참고</b>입니다(과거 검증 전).</div></div>`;
+  h += `<div class="card"><h2>영역별 점수 <div class="chips">${[['global', '글로벌'], ['us', '미국'], ['kr', '한국']].map(([k, n]) => `<button class="chip" style="padding:3px 10px;min-height:30px" data-mreg="${k}" aria-pressed="${k === mRegion}">${n}</button>`).join('')}</div></h2>
+    <div class="tw"><table><thead><tr><th>영역(가중치)</th><th class="n">점수</th><th>평가</th></tr></thead><tbody>${[['liq', '유동성', 30], ['econ', '경기', 25], ['breadth', '시장 내부 건강도', 20], ['credit', '신용·금융 스트레스', 15], ['pos', '투자자 포지셔닝', 10]].map(([d, n, w]) => { const v = cur.dom[d], g = gradeOf(v); return `<tr><td>${n} <span class="muted small">${w}%</span></td><td class="n">${v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(2)}</td><td>${pill(g[0], g[1])}</td></tr>`; }).join('')}</tbody></table></div>
+    ${(() => { const t = ['liq', 'econ'].map(d => cur.dom[d]), conf = []; if (cur.dom.credit != null && cur.dom.credit <= -.3 && t.every(v => v != null && v > 0)) conf.push('국면은 우호적이지만 신용·금융 스트레스가 부정적 — 충돌 신호'); if (cur.dom.breadth != null && cur.dom.breadth <= -.3 && t.some(v => v != null && v > .3)) conf.push('국면은 우호적이지만 시장 내부 건강도가 부정적 — 소수 종목 주도 가능성'); return conf.length ? `<div class="note small">${conf.map(esc).join('<br>')}</div>` : ''; })()}
+    <p class="small muted" style="margin:8px 0 4px">국면 전환: <b>${esc(cur.trans)}</b> · 1개월 전 국면: ${esc(R.phaseNames[cur.prev1])}</p>
+    <details><summary class="small b">지표별 근거 보기 (${(cur.ind || []).length}개)</summary>${(cur.ind || []).map(x => `<div class="sig" style="grid-template-columns:1fr auto"><div><div>${esc(x.label)} <span class="muted small">${esc(x.tag)}</span></div><div class="small muted">${esc(x.note)}</div></div><div class="right"><b>${esc(x.fmt)}</b><div>${x.score == null ? pill('확인 불가', 'mut') : pill((x.score > 0 ? '+' : '') + x.score, x.score > 0 ? 'good' : x.score < 0 ? 'bad' : 'mut')}</div></div></div>`).join('')}</details></div>`;
+  h += `<div class="card"><h2>CNN 공포탐욕 지수 ${cn ? pill(CNN_KO[cn.rating] || cn.rating, cn.score >= 55 ? 'good' : cn.score <= 45 ? 'bad' : 'mut') : ''}</h2>`;
+  if (cn) {
+    const c = cnnCorr(); h += `<div class="row"><div style="font-size:2rem;font-weight:800">${cn.score.toFixed(0)}</div><div class="small muted">0=극단적 공포 · 100=극단적 탐욕<br>${esc(String(cn.t).slice(0, 16).replace('T', ' '))} UTC</div></div>
+      <dl class="kv"><dt>전일</dt><dd>${F.n1(cn.prev)}</dd><dt>1주 전</dt><dd>${F.n1(cn.w1)}</dd><dt>1개월 전</dt><dd>${F.n1(cn.m1)}</dd><dt>1년 전</dt><dd>${F.n1(cn.y1)}</dd></dl>
+      <h3 style="margin-top:10px">구성 7요소</h3>${Object.keys(CNN_PARTS).map(k => cn.parts[k] ? `<div class="row small" style="padding:3px 0"><span style="flex:1">${esc(CNN_PARTS[k])}</span><b>${cn.parts[k].score.toFixed(0)}</b>${pill(CNN_KO[cn.parts[k].rating] || cn.parts[k].rating, cn.parts[k].score >= 55 ? 'good' : cn.parts[k].score <= 45 ? 'bad' : 'mut')}</div>` : '').join('')}
+      <p class="small muted" style="margin:8px 0 0">앱 점수에는 ${S.settings.fearSrc === 'own' ? '자체 지수' : '이 CNN 값(실시간)'}가 쓰입니다. 자체 가격기반 지수와의 최근 1년 상관: ${c ? '<b>' + c.r.toFixed(2) + '</b> (n=' + c.n + ')' : '계산 불가'}. CNN 지수는 공개 이력이 약 1년뿐이라 장기 과거 검증은 자체 지수로 했습니다.</p>`;
+  } else h += `<p class="muted small">CNN 지수를 지금은 읽지 못했습니다(CNN이 접근을 제한하거나 네트워크 문제). 자체 공포지수로 자동 대체 중입니다. <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener" style="color:var(--info)">CNN에서 직접 보기</a></p>`;
+  h += `</div>`;
+  h += `<div class="card"><h2>주요 시장 데이터 <span class="muted small">출처 Yahoo Finance(지연 가능) · 기준 종가</span></h2><div class="tw"><table><thead><tr><th>지표</th><th class="n">현재</th><th class="n">1일</th><th class="n">1개월</th><th class="n">3개월</th></tr></thead><tbody>${mktTable().map(([nm, s, v]) => v ? `<tr><td>${esc(nm)}</td><td class="n">${v.last >= 1000 ? v.last.toLocaleString('en-US', { maximumFractionDigits: 0 }) : v.last.toFixed(2)}</td>${[v.d1, v.m1, v.m3].map(x => `<td class="n ${cls(x)}">${v.y ? (x >= 0 ? '+' : '') + x.toFixed(2) + '%p' : F.pct(x)}</td>`).join('')}</tr>` : `<tr><td>${esc(nm)}</td><td class="n muted" colspan="4">데이터 없음</td></tr>`).join('')}<tr><td>미 2년물 금리</td><td class="n muted" colspan="4">확인 불가(무료 데이터 없음)</td></tr></tbody></table></div></div>`;
+  h += `<div class="card"><h2>AI 심층 보고서 만들기 <span class="muted small">선택</span></h2><p class="small" style="margin:0 0 8px">첨부하신 <b>‘글로벌·한국 증시 투자전략 보고서 프롬프트 V3’</b>에 위 <b>현재 데이터 스냅샷</b>을 자동으로 붙여 줍니다. 복사한 뒤 ChatGPT·Claude·Gemini 등 원하는 AI에 붙여넣으면 3대 사고 모델·시나리오·이벤트 캘린더까지 포함한 6,000자 내외 보고서를 받을 수 있습니다(웹 검색이 되는 AI 권장). 앱은 AI를 호출하지 않으며 비용이 없습니다.</p><div class="row"><button class="btn pri" id="mpCopy">프롬프트+데이터 복사</button>${navigator.share ? '<button class="btn" id="mpShare">공유</button>' : ''}</div><div class="small muted" id="mpMsg" style="margin-top:6px"></div></div>`;
+  el.innerHTML = h;
+}
+async function buildMarketPrompt() {
+  if (!MPROMPT) MPROMPT = await (await fetch('data/market_prompt.md?v=' + Math.floor(Date.now() / 36e5))).text();
+  const R = calcRegime(), cn = cnnLive() || CNN, kst = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
+  const L = ['', '---', '', '# [앱이 수집한 데이터 스냅샷 — 이 값들은 아래 출처 기준으로 확인한 값이며, 나머지는 직접 검색해 교차검증할 것]', `- 기준 시각: ${kst} (KST) / 앱 마지막 일봉 기준일: ${R ? R.asof : '–'}`, '- 출처: Yahoo Finance(지연 가능, 종가·장중 혼재 가능) / CNN Fear & Greed(브라우저 직접 조회)', '- 주의: S&P500·나스닥은 ETF(SPY·QQQ) 가격 기준이며 지수 값이 아님. 미 2년물·PMI·고용·기업이익·외국인 수급은 확인 불가 → 직접 확인 필요', '', '## 주요 시장 데이터 [확인: Yahoo Finance]'];
+  mktTable().forEach(([nm, s, v]) => { if (v) L.push(`- ${nm}: ${v.last.toFixed(2)} (1일 ${v.y ? v.d1.toFixed(2) + '%p' : (v.d1 * 100).toFixed(2) + '%'}, 1개월 ${v.y ? v.m1.toFixed(2) + '%p' : (v.m1 * 100).toFixed(1) + '%'}, 3개월 ${v.y ? v.m3.toFixed(2) + '%p' : (v.m3 * 100).toFixed(1) + '%'}) [기준 ${v.date}]`); });
+  if (cn) L.push('', `## CNN 공포탐욕 [확인: CNN] ${cn.score.toFixed(0)} (${CNN_KO[cn.rating] || cn.rating}), 전일 ${F.n1(cn.prev)}, 1주 전 ${F.n1(cn.w1)}, 1개월 전 ${F.n1(cn.m1)}`);
+  if (R) { L.push('', '## 앱의 시장 국면 판별 결과 [해석: 가격 기반 산출, 참고용]'); for (const [k, nm] of [['global', '글로벌'], ['us', '미국'], ['kr', '한국']]) { const r = R.regions[k]; L.push(`- ${nm}: ${R.phaseNames[r.phase]} (전환: ${r.trans}, 신뢰도 ${r.confText}) / 점수 유동성 ${F.n1(r.dom.liq)}, 경기 ${F.n1(r.dom.econ)}, 시장내부 ${F.n1(r.dom.breadth)}, 신용 ${F.n1(r.dom.credit)}, 포지셔닝 ${F.n1(r.dom.pos)}`); } L.push('- 지표 상세(미국):'); R.regions.us.ind.forEach(x => L.push(`  - ${x.label}: ${x.fmt} (${x.score == null ? '확인 불가' : (x.score > 0 ? '+' : '') + x.score})`)); }
+  L.push('', '## 요청', '위 프롬프트의 보고서 형식(15개 항목)과 최종 5가지 질문을 따르되, 위 스냅샷은 [확인] 태그 데이터로 사용하고 앱이 확인하지 못한 항목은 웹 검색으로 직접 확인해 [확인]/[보도]/[해석]/[전망] 태그를 달아 주세요. 앱의 국면 판별은 가격 기반 근사치이므로 공식 지표로 반박되면 그 이유를 밝혀 주세요.');
+  return MPROMPT + '\n' + L.join('\n');
+}
+
 /* ───────── 설정·지식 ───────── */
 let knAt = 0;
 async function loadKN(force) { if (KN && !force) return; try { KN = await jget('data/knowledge.json?t=' + Date.now(), 12000, { cache: 'no-store' }); knAt = Date.now(); if (view === 'set' || view === 'today') softRender(); } catch (e) { if (!KN) KN = { none: true }; } }
@@ -509,7 +598,7 @@ function vSet() {
   h += `<div class="card"><h2>데이터 상태 <span class="pill ${f.k === 'ok' ? 'good' : f.k === 'warn' ? 'warn' : 'bad'}">${f.k === 'ok' ? '정상' : f.k === 'warn' ? '지연' : '오래됨'}</span></h2><p class="small muted" style="margin:0 0 8px">${esc(f.d)}</p><dl class="kv"><dt>자동 갱신</dt><dd>${st.auto ? '켜짐 (보는 동안 장중 2분·장외 10분)' : '꺼짐'}</dd><dt>마지막 서버 갱신</dt><dd>${MAN?.updated ? new Date(MAN.updated * 1000).toLocaleString('ko-KR', { hour12: false }) : '–'}</dd><dt>갱신 실패 종목</dt><dd>${(MAN?.fails || []).join(', ') || '없음'}</dd><dt>저장된 종목 수</dt><dd>${Object.keys(PX).length}</dd></dl>
   <div class="row" style="margin-top:10px"><button class="btn pri" id="btnNow">지금 새로고침</button><label class="chk" style="padding:0"><input type="checkbox" id="oAuto" ${st.auto ? 'checked' : ''}><span>자동 갱신</span></label></div>
   <p class="small muted">우선순위: ① 같은 서버의 data/(자동 갱신 파일) → ② 프록시/직접 → ③ 마지막 정상 저장본. 어느 경로가 막혀도 화면은 비지 않고 ‘지연/오래됨’으로 표시됩니다. 신호는 일봉 종가 기준이라 수 분 지연은 결과에 영향이 거의 없습니다.</p></div>`;
-  h += `<div class="card"><h2>내 매매 기준</h2><div class="form"><label class="f">목표 현금 비중 %<input id="cCash" inputmode="decimal" value="${st.cashTarget}"></label><label class="f">최소 유지 현금 %<input id="cRes" inputmode="decimal" value="${st.reserve}"></label><label class="f">1차 사용 %<input id="cT1" inputmode="decimal" value="${st.tranche[0]}"></label><label class="f">2차 %<input id="cT2" inputmode="decimal" value="${st.tranche[1]}"></label><label class="f">3차 %<input id="cT3" inputmode="decimal" value="${st.tranche[2]}"></label><label class="f">단일 종목 최대 %<input id="cMaxP" inputmode="decimal" value="${st.maxPos}"></label><label class="f">레버리지 합계 한도 %<input id="cMaxL" inputmode="decimal" value="${st.maxLev}"></label><label class="f">익절 기준 % (쉼표)<input id="cTp" value="${st.tp.join(',')}"></label><label class="f">테마<select id="cTheme">${[['auto', '자동'], ['light', '라이트'], ['dark', '다크']].map(([v, t]) => `<option value="${v}" ${st.theme === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div><label class="f" style="margin-top:10px">프록시/서버 주소(선택, 예: https://xxx.workers.dev 또는 http://192.168.0.10:8777)<input id="cProxy" value="${esc(st.proxy)}" placeholder="비우면 자동"></label>
+  h += `<div class="card"><h2>내 매매 기준</h2><div class="form"><label class="f">목표 현금 비중 %<input id="cCash" inputmode="decimal" value="${st.cashTarget}"></label><label class="f">최소 유지 현금 %<input id="cRes" inputmode="decimal" value="${st.reserve}"></label><label class="f">1차 사용 %<input id="cT1" inputmode="decimal" value="${st.tranche[0]}"></label><label class="f">2차 %<input id="cT2" inputmode="decimal" value="${st.tranche[1]}"></label><label class="f">3차 %<input id="cT3" inputmode="decimal" value="${st.tranche[2]}"></label><label class="f">단일 종목 최대 %<input id="cMaxP" inputmode="decimal" value="${st.maxPos}"></label><label class="f">레버리지 합계 한도 %<input id="cMaxL" inputmode="decimal" value="${st.maxLev}"></label><label class="f">익절 기준 % (쉼표)<input id="cTp" value="${st.tp.join(',')}"></label><label class="f">공포지수 소스<select id="cFear"><option value="cnn" ${st.fearSrc !== 'own' ? 'selected' : ''}>CNN 우선(실시간, 실패 시 자체)</option><option value="own" ${st.fearSrc === 'own' ? 'selected' : ''}>자체 지수(과거 검증됨)</option></select></label><label class="f">테마<select id="cTheme">${[['auto', '자동'], ['light', '라이트'], ['dark', '다크']].map(([v, t]) => `<option value="${v}" ${st.theme === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div><label class="f" style="margin-top:10px">프록시/서버 주소(선택, 예: https://xxx.workers.dev 또는 http://192.168.0.10:8777)<input id="cProxy" value="${esc(st.proxy)}" placeholder="비우면 자동"></label>
   <label class="chk"><input type="checkbox" id="oNotify" ${st.notify ? 'checked' : ''}><span>새 매수 신호 알림 (앱을 열어 둔 동안/백그라운드 탭)</span></label><div class="row"><button class="btn pri" id="cSave">저장</button><button class="btn" id="cReset">기본값</button></div></div>`;
   h += `<div class="card"><h2>사용 설명서</h2><p style="margin:0 0 8px" class="small muted">설치·매일 쓰는 법·점수/검증 읽는 법·문제 해결.</p><a class="btn pri" href="guide.html" style="display:inline-block;text-decoration:none">사용 설명서 열기</a><dl class="kv" style="margin-top:10px"><dt>거물 거래 수집</dt><dd>${TR.status ? new Date(TR.status.updated * 1000).toLocaleString('ko-KR', { hour12: false }) : '–'}</dd><dt>SEC · 하원 · FMP</dt><dd>${TR.status ? esc(TR.status.sec) + ' · ' + esc(TR.status.house) + ' · ' + esc(TR.status.fmp) : '–'}</dd><dt>공포지수 버전 · 매도 규칙</dt><dd>v${params().fearV || 1} · ${params().trim === false ? '신규매수만 중단' : '익절 사용'}</dd></dl></div>
   <div class="card"><h2>백업·설치</h2><div class="row"><button class="btn sm" id="bkExp">백업 내보내기</button><button class="btn sm" id="bkImp">백업 불러오기</button><button class="btn sm" id="clrPx">시세 캐시 삭제</button>${window.__pwa ? '<button class="btn sm pri" id="pwaInstall">홈 화면에 설치</button>' : ''}</div><input type="file" id="bkFile" accept=".json" hidden><p class="small muted">iPhone: Safari 공유 버튼 → 홈 화면에 추가. Android: 주소창 메뉴 → 앱 설치. 모든 개인 데이터(보유·기록)는 이 기기에만 저장됩니다.</p></div>`;
@@ -520,18 +609,18 @@ function vSet() {
 function knowledgeHTML() {
   if (!KN) { loadKN(); return '<p class="muted small">불러오는 중…</p>'; } if (KN.none) return '<p class="muted small">data/knowledge.json 이 없습니다(tools/build_knowledge.py 로 생성).</p>';
   const ch = KN.channels, sig = KN.signals; let h = `<dl class="kv">${Object.entries(ch).map(([k, v]) => `<dt>${esc(v.name)}</dt><dd>${v.withSub}/${v.total}개 자막 분석 (${v.from}~${v.to})</dd>`).join('')}<dt>분석 시점</dt><dd>${esc(KN.built)}</dd></dl>`;
-  if (sig) { h += `<h3 style="margin-top:12px">영상에서 강조한 신호 (1,000자당 언급)</h3><div class="tw"><table><thead><tr><th>신호</th><th class="n">웅덩이(dm)</th><th class="n">도키</th></tr></thead><tbody>${Object.keys(sig.dm).map(k => `<tr><td>${esc(k)}</td><td class="n">${sig.dm[k]}</td><td class="n">${sig.doki[k]}</td></tr>`).join('')}</tbody></table></div>`; }
+  if (sig) { h += `<h3 style="margin-top:12px">영상에서 강조한 신호 (1,000자당 언급)</h3><div class="tw"><table><thead><tr><th>신호</th><th class="n">디벨롭(dm)</th><th class="n">도키</th></tr></thead><tbody>${Object.keys(sig.dm).map(k => `<tr><td>${esc(k)}</td><td class="n">${sig.dm[k]}</td><td class="n">${sig.doki[k]}</td></tr>`).join('')}</tbody></table></div>`; }
   h += `<h3 style="margin-top:12px">영상 검색</h3><input id="kq" placeholder="제목·키워드 (예: SOXL, 200일선)" value="${esc(window.__kq || '')}"><div id="kres"></div>`; setTimeout(knSearch, 0); return h;
 }
-function knSearch() { const q = ($('#kq')?.value || '').trim().toLowerCase(), el = $('#kres'); if (!el || !KN?.videos) return; window.__kq = q; const r = KN.videos.filter(v => !q || (v[3] || '').toLowerCase().includes(q)).slice(0, 40); el.innerHTML = r.map(v => `<div class="rule"><a href="https://youtu.be/${v[0]}" target="_blank" rel="noopener">▶ ${esc(v[3] || v[0])}</a><div class="small muted">${v[1] === 'dm' ? '웅덩이' : '도키'} · ${esc(v[2] || '')}</div></div>`).join('') || '<div class="empty">결과 없음</div>'; }
+function knSearch() { const q = ($('#kq')?.value || '').trim().toLowerCase(), el = $('#kres'); if (!el || !KN?.videos) return; window.__kq = q; const r = KN.videos.filter(v => !q || (v[3] || '').toLowerCase().includes(q)).slice(0, 40); el.innerHTML = r.map(v => `<div class="rule"><a href="https://youtu.be/${v[0]}" target="_blank" rel="noopener">▶ ${esc(v[3] || v[0])}</a><div class="small muted">${v[1] === 'dm' ? '디벨롭' : '도키'} · ${esc(v[2] || '')}</div></div>`).join('') || '<div class="empty">결과 없음</div>'; }
 
 /* ───────── 렌더·이벤트 ───────── */
 function applyTheme() { const t = S.settings.theme; t === 'auto' ? document.documentElement.removeAttribute('data-theme') : document.documentElement.setAttribute('data-theme', t); }
 function render() {
   const nav = navHTML(); $('#botNav').innerHTML = nav; $('#sideNav').innerHTML = nav; renderSeg(); renderFresh();
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view)); $('#pageTitle').textContent = VIEWS.find(v => v[0] === view)[2];
-  $('#lensSeg').style.display = ['acct', 'set', 'whales'].includes(view) ? 'none' : '';
-  ({ today: vToday, stock: vStock, whales: vWhales, verify: vVerify, acct: vAcct, set: vSet })[view]();
+  $('#lensSeg').style.display = ['acct', 'set', 'whales', 'market'].includes(view) ? 'none' : '';
+  ({ today: vToday, stock: vStock, market: vMarket, whales: vWhales, verify: vVerify, acct: vAcct, set: vSet })[view]();
 }
 const dl = (name, txt, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 document.addEventListener('click', async e => {
@@ -540,7 +629,13 @@ document.addEventListener('click', async e => {
   if (t.dataset.go) return go('stock', t.dataset.go); if (t.dataset.lens) { S.settings.lens = t.dataset.lens; save(); return render(); }
   if (t.dataset.sym) { curSym = t.dataset.sym; return render(); } if (t.dataset.rng) { range = t.dataset.rng; return render(); }
   if ('close' in t.dataset) return closeModal(); if (t.dataset.jdel) { S.journal = S.journal.filter(j => j.id != t.dataset.jdel); save(); return render(); } if (t.dataset.edith) return holdForm(t.dataset.edith);
-  if (t.id === 'fresh' || t.id === 'btnSet') { go('set'); return; }
+  if (t.id === 'fresh' || t.id === 'btnSet') { go('set'); return; } if (t.id === 'btnVerify') { go('verify'); return; }
+  if (t.dataset.mreg) { mRegion = t.dataset.mreg; return render(); }
+  if (t.id === 'mpCopy' || t.id === 'mpShare') {
+    const msg = $('#mpMsg'); msg.textContent = '데이터를 모으는 중…';
+    try { const txt = await buildMarketPrompt(); if (t.id === 'mpShare') { await navigator.share({ title: '디벨롭 시장 보고서 프롬프트', text: txt }); msg.textContent = '공유 창을 열었습니다.'; } else { await navigator.clipboard.writeText(txt); msg.textContent = `복사 완료 (${txt.length.toLocaleString()}자). 사용할 AI 앱에 붙여넣으세요.`; } }
+    catch (e) { msg.textContent = '복사/공유에 실패했습니다: ' + (e.message || e) + ' — 브라우저 권한을 확인하세요.'; } return;
+  }
   if (t.dataset.wt) { wTab = t.dataset.wt; wPerson = null; return render(); } if (t.dataset.wf) { wFilter = t.dataset.wf; return render(); }
   if (t.dataset.wp) { wPerson = t.dataset.wp; wTab = 'feed'; return render(); } if (t.dataset.wfund) { wFund = t.dataset.wfund; return render(); }
   if (t.dataset.trade) return tradeSheet(t.dataset.trade); if (t.dataset.opensym) { closeModal(); return go('stock', t.dataset.opensym); }
@@ -560,8 +655,7 @@ document.addEventListener('click', async e => {
     hDel: () => { S.holdings = S.holdings.filter(x => x.sym !== $('#hSym').value); save(); closeModal(); render(); },
     editCash: () => openModal(`<h2>현금(USD)</h2><label class="f">보유 현금<input id="cashIn" inputmode="decimal" value="${S.cash || ''}"></label><div class="row"><button class="btn pri" id="cashSave">저장</button><button class="btn" data-close>취소</button></div>`),
     cashSave: () => { S.cash = num($('#cashIn').value) || 0; save(); closeModal(); render(); }, jAdd: addJournal,
-    jCsv: () => dl('journal.csv', '﻿' + [['date', 'side', 'sym', 'qty', 'price', 'tranche', 'note'], ...S.journal.map(j => [j.date, j.side, j.sym, j.qty, j.px, j.tr, '"' + (j.note || '').replace(/"/g, '""') + '"'])].map(r => r.join(',')).join('\n'), 'text/csv'),
-    cSave: async () => { const s = S.settings; s.cashTarget = num($('#cCash').value) ?? 20; s.reserve = num($('#cRes').value) ?? 10; s.tranche = [num($('#cT1').value) ?? 20, num($('#cT2').value) ?? 30, num($('#cT3').value) ?? 50]; s.maxPos = num($('#cMaxP').value) ?? 30; s.maxLev = num($('#cMaxL').value) ?? 40; s.tp = $('#cTp').value.split(',').map(num).filter(x => x > 0).sort((a, b) => a - b); if (!s.tp.length) s.tp = [30, 60, 100]; s.theme = $('#cTheme').value; s.proxy = $('#cProxy').value.trim(); s.notify = $('#oNotify').checked; if (s.notify && 'Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); applyTheme(); save(); setStatus('저장되었습니다'); setTimeout(() => setStatus(''), 1500); render(); },
+    cSave: async () => { const s = S.settings; s.cashTarget = num($('#cCash').value) ?? 20; s.reserve = num($('#cRes').value) ?? 10; s.tranche = [num($('#cT1').value) ?? 20, num($('#cT2').value) ?? 30, num($('#cT3').value) ?? 50]; s.maxPos = num($('#cMaxP').value) ?? 30; s.maxLev = num($('#cMaxL').value) ?? 40; s.tp = $('#cTp').value.split(',').map(num).filter(x => x > 0).sort((a, b) => a - b); if (!s.tp.length) s.tp = [30, 60, 100]; s.theme = $('#cTheme').value; s.fearSrc = $('#cFear').value; s.proxy = $('#cProxy').value.trim(); s.notify = $('#oNotify').checked; if (s.notify && 'Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); applyTheme(); save(); recompute(); setStatus('저장되었습니다'); setTimeout(() => setStatus(''), 1500); render(); },
     cReset: () => { if (confirm('기준을 기본값으로 되돌릴까요?')) { S.settings = DEF().settings; applyTheme(); save(); render(); } },
     bkExp: () => dl('puddle-trader-backup.json', JSON.stringify(S, null, 1), 'application/json'), bkImp: () => $('#bkFile').click(),
     clrPx: async () => { PX = {}; for (const k of (await IDB.keys()) || []) if (String(k).startsWith('px:') || k === 'man') await IDB.set(k, null); MAN = null; render(); refresh(true); },
@@ -578,7 +672,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1).split('/'); if (VIEWS.some(v => v[0] === h[0]) && (h[0] !== view || (h[1] && h[1] !== curSym))) { view = h[0]; if (h[1]) curSym = h[1]; render(); } });
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__pwa = e; if (view === 'set') render(); });
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => view === 'stock' && render(), 150); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickN = 0; tick(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tickN = 0; tick(); checkUpdate(); } });
 window.addEventListener('online', () => refresh(false)); window.addEventListener('focus', () => { if (freshness().k !== 'ok') refreshLight(); });
 // 당겨서 새로고침(모바일)
 (() => { let y0 = null, d = 0; const ptr = $('#ptr'); addEventListener('touchstart', e => { y0 = scrollY <= 0 ? e.touches[0].clientY : null; d = 0; }, { passive: true }); addEventListener('touchmove', e => { if (y0 == null) return; d = e.touches[0].clientY - y0; ptr.classList.toggle('on', d > 60); ptr.textContent = d > 110 ? '↑ 놓으면 새로고침' : '↓ 당겨서 새로고침'; }, { passive: true }); addEventListener('touchend', () => { if (y0 != null && d > 110) refresh(true); ptr.classList.remove('on'); y0 = null; }); })();
@@ -588,10 +682,10 @@ window.addEventListener('online', () => refresh(false)); window.addEventListener
   applyTheme();
   const h = location.hash.slice(1).split('/'); if (VIEWS.some(v => v[0] === h[0])) { view = h[0]; if (h[1]) curSym = h[1]; }
   render();
-  try { const keys = (await IDB.keys()) || []; await Promise.all(keys.map(async k => { const v = await IDB.get(k); if (!v) return; if (String(k).startsWith('px:')) PX[k.slice(3)] = v; else if (k === 'man') MAN = v; else if (k === 'fund') FUND = v; else if (k === 'bt') RES = v; else if (k === 'tr') TR = v; })); } catch (e) { }
+  try { const keys = (await IDB.keys()) || []; await Promise.all(keys.map(async k => { const v = await IDB.get(k); if (!v) return; if (String(k).startsWith('px:')) PX[k.slice(3)] = v; else if (k === 'man') MAN = v; else if (k === 'fund') FUND = v; else if (k === 'bt') RES = v; else if (k === 'tr') TR = v; else if (k === 'cnn') CNN = v; })); } catch (e) { }
   try { LIVE_URL = (await jget('data/live.json?t=' + Date.now(), 4000, { cache: 'no-store' })).live || ''; } catch (e) { }
   recompute(); render();                         // 저장된 마지막 데이터로 즉시 표시(오프라인에서도 동작)
   await refresh(false);                           // 이어서 최신화
-  setInterval(tick, 60000); setInterval(liveTick, 10000); setInterval(renderFresh, 15000); loadKN();
+  checkUpdate(); setInterval(checkUpdate, 5 * 6e4); setInterval(tick, 60000); setInterval(liveTick, 10000); setInterval(renderFresh, 15000); loadKN();
   if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
