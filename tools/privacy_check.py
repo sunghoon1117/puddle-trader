@@ -10,7 +10,8 @@ PATTERNS = {
     "이메일": re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),
     "Anthropic/OpenAI 키": re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
     "apikey 쿼리": re.compile(r"apikey=[A-Za-z0-9]{8,}", re.I),
-    "로컬 경로/사용자명": re.compile(r"C:\\Users\\|/Users/[a-z]|jshoo", re.I),
+    # 로컬 경로 + 이 PC 의 사용자명(고정 문자열 대신 실행 시점에 읽어 저장소에 개인 식별 문자열이 남지 않게 함)
+    "로컬 경로/사용자명": re.compile(r"C:\\Users\\|/Users/[a-z]" + (("|" + re.escape(os.environ.get("USERNAME") or os.environ.get("USER") or "")) if (os.environ.get("USERNAME") or os.environ.get("USER")) else ""), re.I),
     "GitHub 토큰": re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}"),
 }
 ALLOW_EMAIL = re.compile(r"(me@example\.com|noreply@|@users\.noreply\.github\.com)")
