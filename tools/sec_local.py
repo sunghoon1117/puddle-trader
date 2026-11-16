@@ -18,6 +18,7 @@ def run(*a, check=True):
     return r
 
 
+print("사용 중인 연락처 도메인:", os.environ["SEC_USER_AGENT"].split("@")[-1].strip() if "@" in os.environ["SEC_USER_AGENT"] else "(이메일 형식 아님!)")
 run("git", "pull", "--rebase", "--autostash", "-q")
 remote = run("git", "remote", "get-url", "origin").stdout.strip()
 m = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote)

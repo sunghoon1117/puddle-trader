@@ -67,7 +67,12 @@ def sec_get(url):
                 return r.read()
         except urllib.error.HTTPError as e:
             if e.code in (403, 429):
-                raise SecBlocked("HTTP %d" % e.code)       # 우회하지 않고 즉시 중단
+                try:                                          # SEC 안내문에서 원인 문구만 뽑아 진단에 쓴다(연락처 값은 포함되지 않음)
+                    body = " ".join(e.read(4000).decode("utf8", "ignore").split())
+                except Exception:
+                    body = ""
+                m = re.search(r"Undeclared Automated Tool|Request Rate Threshold[^.<]*|Too Many Requests|Forbidden", body)
+                raise SecBlocked("HTTP %d %s %s" % (e.code, urllib.parse.urlparse(url).netloc, m.group(0) if m else ""))   # 우회하지 않고 즉시 중단
             if e.code >= 500 and i == 0:
                 time.sleep(2); continue
             raise
