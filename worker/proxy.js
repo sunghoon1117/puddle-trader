@@ -124,6 +124,38 @@ export default {
       const out = Object.fromEntries((await Promise.all(syms.map(one))).filter(x => x[1]));
       return new Response(JSON.stringify(out), { headers: { ...CORS, 'cache-control': 'public, max-age=10' } });
     }
+    if (u.pathname === '/api/search') {   // 종목 검색(이름·티커) — 야후 검색 결과에서 주식·ETF만
+      const q = (u.searchParams.get('q') || '').trim().slice(0, 40);
+      if (!q) return new Response('{"items":[]}', { headers: CORS });
+      for (const h of HOSTS) {
+        try {
+          const r = await fetch(`https://${h}/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0&lang=ko-KR`, { headers: { 'user-agent': 'puddle-trader/1.0 (personal research)' }, cf: { cacheTtl: 300, cacheEverything: true } });
+          if (!r.ok) continue;
+          const items = ((await r.json()).quotes || []).filter(x => x.symbol && ['EQUITY', 'ETF'].includes(x.quoteType)).slice(0, 8).map(x => ({ sym: x.symbol, name: x.shortname || x.longname || '', type: x.quoteType === 'ETF' ? 'etf' : 'stock', ex: x.exchDisp || '' }));
+          return new Response(JSON.stringify({ items }), { headers: { ...CORS, 'cache-control': 'public, max-age=300' } });
+        } catch (e) { /* 다음 호스트 */ }
+      }
+      return new Response('{"items":[],"error":"upstream"}', { status: 502, headers: CORS });
+    }
+    if (u.pathname === '/api/fund') {   // 투자지표 원자료(앱 목록 밖 종목용) — data/fund.json 의 raw 와 같은 형식
+      const sym = (u.searchParams.get('s') || '').toUpperCase();
+      if (!/^[A-Z0-9.^=-]{1,15}$/.test(sym)) return new Response('{"error":"bad request"}', { status: 400, headers: CORS });
+      const A = ['TotalRevenue', 'GrossProfit', 'OperatingIncome', 'NetIncome', 'EBITDA', 'StockholdersEquity', 'TotalDebt', 'CashAndCashEquivalents', 'OperatingCashFlow', 'FreeCashFlow', 'CashDividendsPaid', 'BasicAverageShares'].map(x => 'annual' + x),
+        T = ['PeRatio', 'ForwardPeRatio', 'PbRatio', 'PsRatio', 'PegRatio', 'EnterprisesValueEBITDARatio', 'MarketCap', 'DilutedEPS'].map(x => 'trailing' + x);
+      for (const h of HOSTS) {
+        try {
+          const r = await fetch(`https://${h}/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(sym)}?symbol=${encodeURIComponent(sym)}&type=${A.concat(T).join(',')}&period1=1400000000&period2=${Math.floor(Date.now() / 1000)}`, { headers: { 'user-agent': 'puddle-trader/1.0 (personal research)' }, cf: { cacheTtl: 3600, cacheEverything: true } });
+          if (!r.ok) continue;
+          const a = {}, t = {};
+          for (const it of (await r.json()).timeseries.result || []) {
+            const k = it.meta.type[0], rows = (it[k] || []).filter(x => x && x.reportedValue && x.reportedValue.raw != null); if (!rows.length) continue;
+            if (k.startsWith('annual')) { a[k.slice(6)] = Object.fromEntries(rows.slice(-6).map(x => [x.asOfDate.slice(0, 4), x.reportedValue.raw])); } else t[k.slice(8)] = rows.slice(-24).map(x => [x.asOfDate, +x.reportedValue.raw.toFixed(4)]);
+          }
+          return new Response(JSON.stringify({ a, t }), { headers: { ...CORS, 'cache-control': 'public, max-age=3600' } });
+        } catch (e) { /* 다음 호스트 */ }
+      }
+      return new Response('{"error":"upstream"}', { status: 502, headers: CORS });
+    }
     if (u.pathname !== '/api/chart') return new Response('{"ok":true}', { headers: CORS });
     const sym = (u.searchParams.get('s') || '').toUpperCase(), rng = u.searchParams.get('range') || '1mo';
     if (!/^[A-Z0-9.^=-]{1,15}$/.test(sym) || !/^[0-9a-z]{2,4}$/.test(rng)) return new Response('{"error":"bad request"}', { status: 400, headers: CORS });

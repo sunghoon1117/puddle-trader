@@ -87,8 +87,36 @@ def fetch_fund(sym):
     # 도키 방식: 보수적 성장률(상한 20%, 하한 5%)·보수적 멀티플 18배·요구수익률 10%로 3년 후 가치를 현재가로 할인
     g = min(.20, max(.05, cagr)) if cagr is not None else .05
     fair = last * (1 + g) ** 3 * 18 / 1.10 ** 3 if last > 0 else None
-    return {"cfps": round(last, 4), "g": round(g, 4), "cagr": None if cagr is None else round(cagr, 4), "mult": 18, "r": .10,
-            "years": yrs, "fair": None if fair is None else round(fair, 2), "asof": yrs[-1]}
+    out = {"cfps": round(last, 4), "g": round(g, 4), "cagr": None if cagr is None else round(cagr, 4), "mult": 18, "r": .10,
+           "years": yrs, "fair": None if fair is None else round(fair, 2), "asof": yrs[-1]}
+    try:
+        out["raw"] = fetch_val_raw(sym)       # 투자지표(PER·PBR·ROE 등)용 원자료 — 계산은 앱이 한다
+    except Exception as e:
+        print("지표 원자료 실패", sym, str(e)[:60])
+    return out
+
+
+VAL_ANNUAL = ["annualTotalRevenue", "annualGrossProfit", "annualOperatingIncome", "annualNetIncome", "annualEBITDA", "annualStockholdersEquity",
+              "annualTotalDebt", "annualCashAndCashEquivalents", "annualOperatingCashFlow", "annualFreeCashFlow", "annualCashDividendsPaid", "annualBasicAverageShares"]
+VAL_TRAIL = ["trailingPeRatio", "trailingForwardPeRatio", "trailingPbRatio", "trailingPsRatio", "trailingPegRatio",
+             "trailingEnterprisesValueEBITDARatio", "trailingMarketCap", "trailingDilutedEPS"]
+
+
+def fetch_val_raw(sym):
+    """야후 재무 시계열 → {a:{항목:{연도:값}}, t:{항목:[[날짜,값],...]}}  (최근 값만 남겨 용량을 줄임)"""
+    types = ",".join(VAL_ANNUAL + VAL_TRAIL)
+    j = http(f"https://{{H}}/ws/fundamentals-timeseries/v1/finance/timeseries/{sym}?symbol={sym}&type={types}&period1=1400000000&period2={int(time.time())}")
+    a, t = {}, {}
+    for it in j["timeseries"]["result"]:
+        k = it["meta"]["type"][0]
+        rows = [x for x in it.get(k, []) if x and x.get("reportedValue") and x["reportedValue"].get("raw") is not None]
+        if not rows:
+            continue
+        if k.startswith("annual"):
+            a[k[6:]] = {x["asOfDate"][:4]: x["reportedValue"]["raw"] for x in rows[-6:]}
+        else:
+            t[k[8:]] = [[x["asOfDate"], round(x["reportedValue"]["raw"], 4)] for x in rows[-24:]]
+    return {"a": a, "t": t}
 
 
 def main():

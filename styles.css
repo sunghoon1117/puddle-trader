@@ -84,3 +84,8 @@ nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-t
   canvas{height:320px}header.top{padding-left:28px;padding-right:28px}.modal{align-items:center}.modal .sheet{border-radius:22px}
 }
 @media (prefers-reduced-motion:no-preference){.view.on{animation:fade .16s ease}@keyframes fade{from{opacity:.5;transform:translateY(3px)}to{opacity:1;transform:none}}}
+
+[data-dt]{cursor:pointer}.mk>div[data-dt]:active,tr[data-dt]:active,.sig[data-dt]:active{background:var(--infobg)}
+[data-dt]:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+details.rule>summary::-webkit-details-marker{display:none}details.rule>summary::after{content:"▾";float:right;color:var(--mut)}details.rule[open]>summary::after{content:"▴"}
+.modal .sheet canvas{height:210px}.sig.click{cursor:pointer}

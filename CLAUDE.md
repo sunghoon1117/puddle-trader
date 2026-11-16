@@ -7,9 +7,10 @@
 | 경로 | 역할 |
 |---|---|
 | `engine.js` | **공용 엔진**: 지표·신호·3관점 점수·차수·이벤트연구·시뮬레이션·자동 보정·시장 국면(`E.regime`). 브라우저와 Web Worker 양쪽에서 실행. 라이브 추천과 백테스트가 같은 코드를 쓴다 |
+| `detail.js` | 지표 클릭 상세 시트(`data-dt` 키: px/mac/fear/cnn/val/ind/dom), 종목 탭의 3관점 비교·투자지표(PER 등) 카드, 종목 검색 추가. `app.js` 보다 먼저 로드 |
 | `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF, 점수 신뢰도 곡선, 한국 종목, 국면 과거 검증) |
 | `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ✓검증 ⚙설정), 서비스 워커, 사용 설명서 |
-| `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
+| `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
 | `tools/update_data.py` | 야후 시세·재무 → `data/px/*.json`, `fund.json`, `manifest.json` |
 | `tools/tracker_collect.py` | SEC Form4·13F·하원 PTR·FMP 의원 거래 → `data/tracker/*.json` |
 | `tools/macro_collect.py`, `calendar_collect.py` | 재무부·FRED 거시, 연준·BLS 공식 일정 |
@@ -21,7 +22,7 @@
 ## 자주 쓰는 명령
 ```bash
 python server.py 8777                      # 로컬 개발 서버(+백그라운드 시세 갱신) → http://localhost:8777
-node --check app.js && node --check engine.js && node --check bt-worker.js && node --check worker/proxy.js   # 문법 검사(수정 후 필수)
+node --check app.js && node --check engine.js && node --check detail.js && node --check bt-worker.js && node --check worker/proxy.js   # 문법 검사(수정 후 필수)
 python tools/privacy_check.py              # 개인정보·비밀 점검(배포 전 필수)
 python tools/update_data.py --full         # 시세 전체 재수집
 cd worker && npx wrangler deploy           # 워커 배포
