@@ -519,7 +519,8 @@ function vWhales() {
   const tabs = [['feed', '피드'], ['people', '인물'], ['f13', '13F 펀드'], ['cong', '의원']];
   h += `<div class="chips" style="margin-bottom:10px">${tabs.map(([k, n]) => `<button class="chip" data-wt="${k}" aria-pressed="${wTab === k}">${n}</button>`).join('')}</div>`;
   if (!TR.trades.length) { el.innerHTML = h + '<div class="empty">거물 거래 데이터를 불러오는 중이거나 아직 없습니다.</div>'; return; }
-  const secTxt = !st ? '' : st.sec === 'ok' ? pill('SEC 정상', 'good') : st.sec === 'cooldown' ? pill('SEC 제한 후 휴지 중 — ' + secLast(st), 'warn') : st.sec === 'blocked' ? pill('SEC 서버 접근 제한 — ' + secLast(st), 'warn') : pill('SEC ' + st.sec, 'warn');
+  const secFresh = st && st.sec !== 'ok' && st.sec_ok_at && Date.now() - st.sec_ok_at * 1000 < 36 * 36e5;
+  const secTxt = !st ? '' : st.sec === 'ok' ? pill('SEC 정상', 'good') : secFresh ? pill('SEC 정상 · PC 수집 ' + new Date(st.sec_ok_at * 1000).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false }), 'good') : st.sec === 'cooldown' ? pill('SEC 제한 후 휴지 중 — ' + secLast(st), 'warn') : st.sec === 'blocked' ? pill('SEC 서버 접근 제한 — ' + secLast(st), 'warn') : pill('SEC ' + st.sec, 'warn');
   h += `<p class="small muted" style="margin:0 0 8px">${secTxt} ${st ? '· 수집 ' + new Date(st.updated * 1000).toLocaleString('ko-KR', { hour12: false }) : ''} · 공시 자체가 지연됩니다(Form 4: 거래 후 2영업일, 13F: 분기말+45일, 의원: 최대 45일).</p>`;
   const L = TR.trades;
   if (wTab === 'feed') {
