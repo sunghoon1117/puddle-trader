@@ -89,3 +89,29 @@ nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-t
 [data-dt]:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 details.rule>summary::-webkit-details-marker{display:none}details.rule>summary::after{content:"▾";float:right;color:var(--mut)}details.rule[open]>summary::after{content:"▴"}
 .modal .sheet canvas{height:210px}.sig.click{cursor:pointer}
+
+/* ───── 가독성·전문적 배치 개선 ───── */
+body{font-size:16px;line-height:1.55}
+.small{font-size:.86rem}
+.pill{font-size:.8rem;padding:2px 9px}
+.three span{font-size:.78rem;padding:2px 8px}
+.mk .l{font-size:.78rem}.mk .v{font-size:1.3rem}
+th{font-size:.78rem}th,td{padding:9px 5px}table{font-size:.92rem}
+td:first-child{white-space:normal;min-width:7.5em}td.n,th.n{white-space:nowrap}
+.btn.sm,.chip{min-height:40px}.iconbtn{width:42px;height:42px}
+.card{border-radius:14px;padding:16px}
+.card h2{font-size:1.05rem}
+.act.buy,.act.trim,.act.hold{border-left:1px solid var(--line)}
+.act.buy{border-color:var(--good);background:color-mix(in srgb,var(--goodbg) 45%,var(--card))}
+.act.trim{border-color:var(--warn)}.act.hold{border-color:var(--info)}
+.iconbtn svg,.nb .ic svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn svg{width:20px;height:20px}.nb .ic svg{width:24px;height:24px;display:block;margin:0 auto}.nb .ic{line-height:1}
+.nb{font-size:.74rem}
+details>summary{min-height:36px}
+@media (min-width:900px){
+  #v-today.on,#v-stock.on,#v-market.on,#v-verify.on,#v-set.on{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  #v-today.on>*,#v-stock.on>*,#v-market.on>*,#v-verify.on>*,#v-set.on>*{margin:0!important}
+  #v-today.on>.mk,#v-stock.on>.chips,#v-stock.on>.card:first-of-type,.view.on>.card.full,.view.on>.disclaimer{grid-column:1/-1}
+  .mk{grid-template-columns:repeat(4,1fr)}
+  body{font-size:15.5px}
+}
