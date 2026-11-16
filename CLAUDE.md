@@ -12,6 +12,7 @@
 | `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ✓검증 ⚙설정), 서비스 워커, 사용 설명서 |
 | `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
 | `tools/update_data.py` | 야후 시세·재무 → `data/px/*.json`, `fund.json`, `manifest.json` |
+| `tools/sec_check.py`, `sec_local.py`(+`.bat`) | SEC 는 GitHub 서버 IP 를 막지만 사용자 PC 는 열림 → PC 에서 수집해 `data/tracker` 를 커밋·푸시. `tracker_collect.py` 가 사이트+저장소 데이터를 합쳐 서버 실행이 PC 수집분을 지우지 않는다. 연락처는 사용자 PC 환경변수 `SEC_USER_AGENT` 에만 둔다 |
 | `tools/tracker_collect.py` | SEC Form4·13F·하원 PTR·FMP 의원 거래 → `data/tracker/*.json` |
 | `tools/macro_collect.py`, `calendar_collect.py` | 재무부·FRED 거시, 연준·BLS 공식 일정 |
 | `tools/youtube_update.py`, `build_knowledge.py`, `collect_subs.py` | 채널 새 영상 분석(RSS→자막→Gemini 영상 분석) / 영상 지식 생성 |

@@ -12,7 +12,7 @@ if not UA or "@" not in UA:
 
 TESTS = [("data.sec.gov (제출 목록)", "https://data.sec.gov/submissions/CIK0001067983.json"),
          ("www.sec.gov (종목-CIK 표)", "https://www.sec.gov/files/company_tickers.json"),
-         ("www.sec.gov (문서 보관소)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&count=1&output=atom")]
+         ("www.sec.gov (문서 보관소)", "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&count=10&output=atom")]
 ok = 0
 for name, url in TESTS:
     time.sleep(1)

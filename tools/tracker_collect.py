@@ -15,6 +15,7 @@ OUT = os.path.join(ROOT, "data", "tracker")
 SEC_UA = os.environ.get("SEC_USER_AGENT", "").strip()
 FMP = os.environ.get("FMP_API_KEY", "").strip()
 SITE = os.environ.get("SITE_URL", "").strip().rstrip("/")
+SEC_LOCAL = os.environ.get("SEC_LOCAL", "") == "1"   # 사용자 PC 에서 실행(서버와 IP 가 달라 서버의 SEC 휴지 시각을 무시)
 BACKFILL = 90
 CODE_KO = {"P": "공개시장 매수", "S": "공개시장 매도", "A": "주식 보상(Grant)", "M": "옵션 행사", "F": "세금용 주식 원천징수", "G": "증여", "C": "전환",
            "D": "발행사에 처분", "X": "옵션 행사", "J": "기타", "W": "상속/유증", "I": "재량 거래", "K": "지분스왑", "L": "소액 거래", "V": "자발적 보고"}
@@ -96,12 +97,33 @@ def load(name, default):
 
 
 def prev_from_site(name, default):
+    """이전 상태 = 배포된 사이트 + 저장소(이 PC 에서 SEC 수집 후 올린 파일)의 합집합.
+    GitHub 서버는 SEC 에 막혀도, 사용자 PC 가 수집해 올린 SEC 데이터가 사라지지 않게 한다."""
+    site = None
     if SITE:
         try:
-            return json.loads(web(f"{SITE}/data/tracker/{name}", timeout=20))
+            site = json.loads(web(f"{SITE}/data/tracker/{name}", timeout=20))
         except Exception:
-            pass
-    return load(name, default)
+            site = None
+    loc = load(name, None)
+    if site is None:
+        return loc if loc is not None else default
+    if loc is None:
+        return site
+    if isinstance(site, list) and isinstance(loc, list):          # trades: id 기준 합집합
+        m = {t["id"]: t for t in site if isinstance(t, dict) and "id" in t}
+        m.update({t["id"]: t for t in loc if isinstance(t, dict) and "id" in t})
+        return list(m.values())
+    if isinstance(site, dict) and isinstance(loc, dict):
+        if name == "state.json":
+            o = {**site, **loc}
+            o["seen"] = sorted(set(site.get("seen", [])) | set(loc.get("seen", [])))
+            o["f13seen"] = {**site.get("f13seen", {}), **loc.get("f13seen", {})}
+            o["sec_ok_at"] = max(site.get("sec_ok_at", 0), loc.get("sec_ok_at", 0))
+            o["sec_block_until"] = site.get("sec_block_until", 0)   # 휴지 시각은 서버 쪽 값을 사용(PC 실행은 아래에서 무시)
+            return o
+        return {**site, **loc}                                      # f13·co·cusip 은 SEC 전용 → PC 수집분 우선
+    return site
 
 
 def _f(x):
@@ -373,8 +395,8 @@ def main():
     state = prev_from_site("state.json", {})
     st = {"seen": set(state.get("seen", [])), "f13": prev_from_site("f13.json", {}), "f13seen": state.get("f13seen", {})}
     co = prev_from_site("co.json", {}); cache = prev_from_site("cusip.json", {})
-    status = {"updated": int(time.time()), "sec": "skipped", "house": "skip", "fmp": "off", "new": 0, "notes": []}
-    block_until = float(state.get("sec_block_until", 0))   # SEC 가 막으면 6시간 동안 요청 자체를 멈춰 제한이 풀리게 함(재시도 폭주 방지)
+    status = {"updated": int(time.time()), "sec_ok_at": int(state.get("sec_ok_at", 0)), "sec": "skipped", "house": "skip", "fmp": "off", "new": 0, "notes": []}
+    block_until = 0.0 if SEC_LOCAL else float(state.get("sec_block_until", 0))   # SEC 가 막으면 6시간 동안 요청 자체를 멈춰 제한이 풀리게 함(재시도 폭주 방지)
     sec_cooldown = time.time() < block_until
     try:
         status["new"] += poll_house(trades, log); status["house"] = "ok"
@@ -399,7 +421,7 @@ def main():
                 c = company(tk)
                 if c:
                     co[tk] = c
-        status["sec"] = "ok"
+        status["sec"] = "ok"; state["sec_ok_at"] = int(time.time())
     except SecCooldown:
         status["sec"] = "cooldown"; status["notes"].append("SEC 접근 제한 후 휴지 중(약 %d시간 뒤 재시도) — 이전 데이터 유지" % max(1, round((block_until - time.time()) / 3600)))
     except SecBlocked as e:
@@ -410,7 +432,8 @@ def main():
     rows = sorted(trades.values(), key=lambda t: (t.get("filed_at") or "", t.get("trade_date") or ""), reverse=True)[:1500]
     dump = lambda n, o: json.dump(o, open(os.path.join(OUT, n), "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
     dump("trades.json", rows); dump("f13.json", st["f13"]); dump("co.json", co); dump("cusip.json", cache)
-    dump("state.json", {"seen": sorted(st["seen"])[-4000:], "f13seen": st["f13seen"], "sec_block_until": block_until if time.time() < block_until else 0}); dump("status.json", status)
+    status["sec_ok_at"] = int(state.get("sec_ok_at", 0))
+    dump("state.json", {"seen": sorted(st["seen"])[-4000:], "f13seen": st["f13seen"], "sec_block_until": block_until if time.time() < block_until else 0, "sec_ok_at": status["sec_ok_at"]}); dump("status.json", status)
     log("거물 거래: %d건 저장, 신규 %d, SEC=%s, 하원=%s, FMP=%s %s" % (len(rows), status["new"], status["sec"], status["house"], status["fmp"], status["notes"]))
 
 
