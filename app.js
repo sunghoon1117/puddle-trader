@@ -274,8 +274,16 @@ function planFor(sym, L) {
 const VIEWS = [['today', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>', '오늘'], ['stock', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-6 4 3 7-9"/><path d="M4 21h16"/></svg>', '종목'], ['market', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>', '시장'], ['whales', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5M16 5.2a3 3 0 010 5.6M18 20c0-2.5-1.2-4-3-4.8"/></svg>', '거물'], ['acct', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>', '내 계좌'], ['verify', '✓', '검증'], ['set', '⚙', '설정']];
 function navHTML() { return VIEWS.filter(v => v[0] !== 'set' && v[0] !== 'verify').map(([k, i, t]) => `<button class="nb" role="tab" data-v="${k}" aria-selected="${k === view}"><span class="ic">${i}</span><span>${t}</span></button>`).join(''); }
 function go(v, sym) { view = v; if (sym) curSym = sym; try { history.replaceState(null, '', '#' + v + (sym ? '/' + sym : '')); } catch (e) { } render(); window.scrollTo(0, 0); }
-function openModal(h) { const m = $('#modal'); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${h}</div>`; m.hidden = false; $('input,select', m)?.focus(); }
-const closeModal = () => { $('#modal').hidden = true; $('#modal').innerHTML = ''; };
+let modalPushed = false;   // 팝업이 열려 있는 동안 기록 항목을 하나 쌓아, 뒤로 가기가 앱 종료 대신 팝업 닫기가 되게 한다
+function openModal(h) {
+  const m = $('#modal'); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${h}</div>`; m.hidden = false; $('input,select', m)?.focus();
+  if (!modalPushed) { try { history.pushState({ modal: 1 }, ''); modalPushed = true; } catch (e) { } }
+}
+const closeModal = nav => {
+  const m = $('#modal'); m.hidden = true; m.innerHTML = '';
+  if (modalPushed) { modalPushed = false; if (!nav) { try { if (history.state && history.state.modal) history.back(); } catch (e) { } } }   // nav=true: 곧 다른 화면으로 이동하므로 쌓은 항목을 그대로 둠
+};
+window.addEventListener('popstate', () => { const m = $('#modal'); if (m && !m.hidden) { modalPushed = false; m.hidden = true; m.innerHTML = ''; } });
 const pill = (t, k = '') => `<span class="pill ${k}">${esc(t)}</span>`;
 const ring = (score, L) => `<div class="ring" style="--p:${score};--rc:${LC[L]}"><b>${score}</b></div>`;
 const actPill = (x, p) => p.kind === 'buy' ? pill(x.k + '차 매수', 'good') : p.kind === 'trim' ? pill('과열', 'warn') : (p.kind === 'hold' && x.k > 0 && !x.fresh) ? pill('지속', 'mut') : p.kind === 'hold' ? pill('관찰') : pill('관망', 'mut');
@@ -764,7 +772,7 @@ document.addEventListener('click', async e => {
   if (t.id === 'mpCopyOut') { try { await navigator.clipboard.writeText(window.__mpText || ''); t.textContent = '복사 완료'; } catch (e) { t.textContent = '복사 실패'; } return; }
   if (t.dataset.wt) { wTab = t.dataset.wt; wPerson = null; wShow = 15; return render(); } if (t.dataset.wf) { wFilter = t.dataset.wf; wShow = 15; return render(); }
   if (t.dataset.wp) { wPerson = t.dataset.wp; wTab = 'feed'; wShow = 15; return render(); } if (t.dataset.wfund) { wFund = t.dataset.wfund; return render(); }
-  if (t.dataset.trade) return tradeSheet(t.dataset.trade); if (t.dataset.mytrade) { const [ts, sd] = t.dataset.mytrade.split('|'); return tradeForm(ts, sd); } if (t.dataset.jdel) { S.journal = S.journal.filter(j => j.id != t.dataset.jdel); save(); return render(); } if (t.dataset.opensym) { closeModal(); return go('stock', t.dataset.opensym); }
+  if (t.dataset.trade) return tradeSheet(t.dataset.trade); if (t.dataset.mytrade) { const [ts, sd] = t.dataset.mytrade.split('|'); return tradeForm(ts, sd); } if (t.dataset.jdel) { S.journal = S.journal.filter(j => j.id != t.dataset.jdel); save(); return render(); } if (t.dataset.opensym) { closeModal(true); return go('stock', t.dataset.opensym); }
   const id = t.id; if (!id) return; const w = S.watch.find(x => x.sym === curSym);
   const A = {
     btnRefresh: () => refresh(true), btnNow: () => refresh(true), btRun: () => runBacktest(),
