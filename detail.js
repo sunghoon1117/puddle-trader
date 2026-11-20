@@ -218,3 +218,14 @@ async function addWatch(sym, type, name) {
   if (!S.watch.find(x => x.sym === sym)) { const lev = LEV_GUESS[sym] || 1, w = { sym, lev, type: type || (lev > 1 ? 'etf' : 'stock'), beta: 1 }; if (isKR(sym) || /[가-힣]/.test(name || '')) w.name = name || sym; S.watch.push(w); }
   curSym = sym; save(); closeModal(); view = 'stock'; render(); setStatus(sym + ' 이력 수집 중…'); await syncLive([sym]); setStatus(''); recompute(); render(); maybeBacktest(true); ensureFundRaw(sym);
 }
+
+/* ───────── 넓은 표(6열↑)는 좁은 화면에서 카드형으로 보이게 라벨을 붙인다 ───────── */
+function stackTables() {
+  document.querySelectorAll('.tw > table:not([data-stk])').forEach(t => {
+    const ths = [...t.querySelectorAll('thead th')]; if (ths.length < 6 || t.querySelectorAll('tbody tr').length > 5) { t.dataset.stk = '0'; return; }
+    const lab = ths.map(x => x.innerHTML.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+    t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => { if (i && lab[i]) { td.dataset.lab = lab[i]; td.innerHTML = '<span class="v">' + td.innerHTML + '</span>'; } }));
+    t.classList.add('stk'); t.dataset.stk = '1';
+  });
+}
+try { new MutationObserver(stackTables).observe(document.querySelector('main'), { childList: true, subtree: true }); } catch (e) { }

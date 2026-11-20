@@ -140,3 +140,55 @@ table{font-size:.88rem}
 .tw th:first-child,.tw td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
 .btn.pri:disabled,.btn.pri[disabled]{opacity:.55}
 select{text-overflow:ellipsis}
+
+/* ───── 오늘 탭 상단 요약(hero) ───── */
+.hero{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.hero button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left;min-width:0}
+.hero .l{display:block;font-size:.8rem;color:var(--mut);line-height:1.3}
+.hero .sub{display:block;font-size:.8rem;color:var(--mut);line-height:1.35}
+.hero-main{display:block;width:100%;padding:14px 16px 12px}
+.hero-main .verdict{display:block;font-size:1.35rem;line-height:1.25;margin:2px 0 2px;overflow-wrap:break-word}
+.hero-main .sub{font-size:.88rem}
+.hero.bad .verdict{color:var(--bad)}.hero.warn .verdict{color:var(--warn)}.hero.good .verdict{color:var(--good)}
+.hero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line)}
+.hero-stats button{padding:10px 12px 12px;border-left:1px solid var(--line)}
+.hero-stats button:first-child{border-left:0}
+.hero-stats b{display:block;font-size:1.3rem;line-height:1.25;font-variant-numeric:tabular-nums}
+.hero-stats .sub{font-size:.76rem}
+.hero button:active{background:var(--infobg)}
+@media (max-width:360px){.hero-stats b{font-size:1.15rem}.hero-stats button{padding:9px 8px 10px}.hero-main .verdict{font-size:1.2rem}}
+#v-today.on>.hero{grid-column:1/-1}
+
+/* ───── 넓은 표 → 좁은 화면에서 카드형 ───── */
+@media (max-width:600px){
+  .tw:has(table.stk){overflow:visible;background:none}
+  table.stk thead{display:none}
+  table.stk,table.stk tbody,table.stk tr,table.stk td{display:block;width:100%}
+  table.stk tr{border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:0 0 8px;background:var(--card)}
+  table.stk td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border:0;padding:3px 0;text-align:right;white-space:normal;min-width:0;position:static}
+  table.stk td::before{content:attr(data-lab);color:var(--mut);font-size:.82rem;text-align:left;flex:none;max-width:55%}
+  table.stk td:first-child{display:block;font-weight:700;text-align:left;padding-bottom:4px;margin-bottom:2px;border-bottom:1px solid var(--line);min-width:0}
+  table.stk td:first-child::before{content:none}
+}
+
+/* ───── 전반 시안성 ───── */
+.kv dd,.mk .v,.sig b,td.n{font-variant-numeric:tabular-nums}
+.card{padding:16px 16px 14px}
+.card h2{margin-bottom:12px}
+.card h3{margin:14px 0 6px;font-size:.95rem}
+.small.muted,.muted.small{color:var(--mut)}
+.note{line-height:1.6}
+.btn.block{margin-top:6px}
+.sig{padding:10px 0}
+.rule{padding:12px 0}
+.empty{line-height:1.6}
+main{padding-top:14px}
+.chips{padding-bottom:6px}
+.act{padding:12px 14px;gap:14px}
+.act .s{font-size:.86rem;line-height:1.45}
+.act .t{font-size:1.02rem}
+.act .b{font-size:1rem}
+.ring{width:52px;height:52px}
+.fresh{white-space:nowrap}
+@media (max-width:360px){.fresh{padding:4px 8px;font-size:.7rem}.top h1{font-size:1.05rem}.iconbtn{width:38px;height:38px}.top .r1{gap:6px}}
+@media (max-width:600px){table.stk td .v{text-align:right;min-width:0}table.stk td br{display:none}table.stk td .v .small{margin-left:.45em}}
