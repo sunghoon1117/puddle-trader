@@ -334,10 +334,15 @@ function stanceCard(items) {
 }
 
 /* ───────── 종목 ───────── */
-let hover = null;
+let hover = null, watchEdit = false;
+function removeWatch(sym) {
+  const w = S.watch.find(x => x.sym === sym); if (!w) return; const held = S.holdings.some(x => x.sym === sym);
+  if (!confirm(dispName(w) + ' 을(를) 관심종목에서 삭제할까요?' + (held ? ' (내 계좌의 보유 기록은 남아 있고 시세는 계속 받습니다.)' : ''))) return;
+  S.watch = S.watch.filter(x => x.sym !== sym); delete LIVE[sym]; delete FEAT[sym]; if (curSym === sym) curSym = null; if (!S.watch.length) watchEdit = false; save(); recompute(); render();
+}
 function vStock() {
   if (!curSym || !S.watch.find(w => w.sym === curSym)) curSym = S.watch[0]?.sym; const w = S.watch.find(x => x.sym === curSym), L = S.settings.lens, el = $('#v-stock');
-  let h = `<div class="chips" style="margin-bottom:10px">${S.watch.map(x => `<button class="chip" data-sym="${esc(x.sym)}" aria-pressed="${x.sym === curSym}">${esc(dispName(x))}</button>`).join('')}<button class="chip" id="addSym">＋ 추가</button></div>`;
+  let h = `<div class="chips" style="margin-bottom:10px">${S.watch.map(x => watchEdit ? `<span class="chipx"><button class="chip" data-sym="${esc(x.sym)}" aria-pressed="${x.sym === curSym}">${esc(dispName(x))}</button><button class="chip del" data-delsym="${esc(x.sym)}" aria-label="${esc(dispName(x))} 삭제">✕</button></span>` : `<button class="chip" data-sym="${esc(x.sym)}" aria-pressed="${x.sym === curSym}">${esc(dispName(x))}</button>`).join('')}<button class="chip" id="addSym">＋ 추가</button><button class="chip" id="editWatch" aria-pressed="${watchEdit}">${watchEdit ? '완료' : '편집·삭제'}</button></div>${watchEdit ? '<p class="small muted" style="margin:-4px 0 10px">✕ 를 누르면 관심종목에서 삭제됩니다. 내 계좌의 보유 기록은 그대로 남습니다.</p>' : ''}`;
   if (!w) { el.innerHTML = h + '<div class="empty">종목을 추가하세요.</div>'; return; }
   const lv = LIVE[w.sym], ent = FEAT[w.sym];
   if (!lv) { el.innerHTML = h + `<div class="card"><h2>${esc(w.sym)} 시세 없음</h2><p class="muted">아직 데이터를 받지 못했습니다(신규 종목은 전체 이력 수집에 몇 초 걸립니다).</p><div class="row"><button class="btn pri" id="fetchOne">이 종목 시세 받기</button><button class="btn danger" id="delSym">삭제</button></div><label class="f" style="margin-top:12px">CSV 붙여넣기(날짜,종가)<textarea id="csvIn"></textarea></label><button class="btn" id="csvGo" style="margin-top:8px">CSV 적용</button></div>`; return; }
@@ -746,6 +751,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.sym) { curSym = t.dataset.sym; return render(); } if (t.dataset.rng) { range = t.dataset.rng; return render(); }
   if ('close' in t.dataset) return closeModal(); if (t.dataset.edith) return holdForm(t.dataset.edith);
   if (t.id === 'fresh' || t.id === 'btnSet') { go('set'); return; } if (t.id === 'btnVerify') { go('verify'); return; }
+  if (t.dataset.delsym) return removeWatch(t.dataset.delsym);
   if (t.dataset.mreg) { mRegion = t.dataset.mreg; return render(); }
   if (t.dataset.ai) {   // AI 해설
     const key = t.dataset.ai, box = (t.closest('.card') || t.closest('.sheet')).querySelector('#aiOut'); box.innerHTML = '<p class="muted small">AI가 분석 중입니다… (최대 30초)</p>'; t.disabled = true;
@@ -781,7 +787,7 @@ document.addEventListener('click', async e => {
     addSym: () => openAddModal(),
     addSymOld: () => openModal(`<h2>관심종목 추가</h2><div class="form"><label class="f">티커<input id="nSym" autocapitalize="characters" placeholder="예: SOXX"></label><label class="f">레버리지<select id="nLev"><option>1</option><option>2</option><option>3</option></select></label></div><div class="row"><button class="btn pri" id="nAdd">추가</button><button class="btn" data-close>취소</button></div>`),
     nAdd: async () => { const s = $('#nSym').value.trim().toUpperCase(); if (!/^[A-Z0-9.^=-]{1,12}$/.test(s)) return; const lv = +$('#nLev').value; if (!S.watch.find(x => x.sym === s)) S.watch.push({ sym: s, lev: lv, type: lv > 1 ? 'etf' : 'stock', beta: 1 }); curSym = s; save(); closeModal(); render(); setStatus(s + ' 이력 수집 중…'); await syncLive([s]); setStatus(''); recompute(); render(); maybeBacktest(true); },
-    delSym: () => { if (confirm(curSym + ' 삭제?')) { S.watch = S.watch.filter(x => x.sym !== curSym); curSym = null; save(); recompute(); render(); } },
+    delSym: () => removeWatch(curSym), editWatch: () => { watchEdit = !watchEdit; render(); },
     sSave: () => { w.lev = +$('#sLev').value; w.beta = num($('#sBeta').value) ?? 1; w.type = $('#sType').value; save(); recompute(); render(); },
     wMore: () => { wShow += 20; render(); }, addHold: () => tradeForm(null, 'buy'), tSave: saveTrade,
     hSave: () => { const s = $('#hSym').value.trim().toUpperCase(), q = num($('#hQty').value), a = num($('#hAvg').value); if (!s || !(q > 0) || !(a > 0)) return alert('티커·수량·평단 확인'); const h = S.holdings.find(x => x.sym === s); h ? (h.qty = q, h.avg = a) : S.holdings.push({ sym: s, qty: q, avg: a }); if (!S.watch.find(x => x.sym === s)) S.watch.push({ sym: s, lev: 1, type: 'stock', beta: 1 }); save(); closeModal(); recompute(); render(); refresh(false); },

@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,4 +73,11 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
       - id: deployment
+        continue-on-error: true      # GitHub 쪽 아티팩트 조회 지연(일시 오류)은 한 번 더 시도
+        uses: actions/deploy-pages@v4
+      - name: 배포 일시 오류면 1분 뒤 재시도
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: deployment2
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
