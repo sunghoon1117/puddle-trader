@@ -157,9 +157,9 @@ export default {
       return new Response('{"error":"upstream"}', { status: 502, headers: CORS });
     }
     if (u.pathname !== '/api/chart') return new Response('{"ok":true}', { headers: CORS });
-    const sym = (u.searchParams.get('s') || '').toUpperCase(), rng = u.searchParams.get('range') || '1mo';
-    if (!/^[A-Z0-9.^=-]{1,15}$/.test(sym) || !/^[0-9a-z]{2,4}$/.test(rng)) return new Response('{"error":"bad request"}', { status: 400, headers: CORS });
-    const q = rng === 'max' ? `period1=0&period2=${Math.floor(Date.now() / 1000) + 86400}&interval=1d` : `range=${rng}&interval=1d`;
+    const sym = (u.searchParams.get('s') || '').toUpperCase(), rng = u.searchParams.get('range') || '1mo', itv = u.searchParams.get('interval') || '1d';
+    if (!/^[A-Z0-9.^=-]{1,15}$/.test(sym) || !/^[0-9a-z]{2,4}$/.test(rng) || !['1d', '1h', '30m', '15m'].includes(itv)) return new Response('{"error":"bad request"}', { status: 400, headers: CORS });
+    const q = rng === 'max' ? `period1=0&period2=${Math.floor(Date.now() / 1000) + 86400}&interval=1d` : `range=${rng}&interval=${itv}`;
     for (const h of HOSTS) {
       try {
         const r = await fetch(`https://${h}/v8/finance/chart/${encodeURIComponent(sym)}?${q}`, { headers: { 'user-agent': 'puddle-trader/1.0 (personal research)' }, cf: { cacheTtl: 60, cacheEverything: true } });

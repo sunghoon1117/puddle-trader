@@ -193,3 +193,12 @@ main{padding-top:14px}
 @media (max-width:360px){.fresh{padding:4px 8px;font-size:.7rem}.top h1{font-size:1.05rem}.iconbtn{width:38px;height:38px}.top .r1{gap:6px}}
 @media (max-width:600px){table.stk td .v{text-align:right;min-width:0}table.stk td br{display:none}table.stk td .v .small{margin-left:.45em}}
 .chipx{display:inline-flex;flex:none;gap:0}.chipx .chip:first-child{border-radius:99px 0 0 99px}.chipx .chip.del{border-radius:0 99px 99px 0;border-left:0;color:var(--bad);padding:7px 11px}
+
+/* ───── 주말·24시간 시장 ───── */
+.wkrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;width:100%;padding:10px 0;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+div.wkrow{cursor:default}
+.wkn{min-width:0;display:grid;gap:1px}.wkn b{font-size:.98rem}
+.wkv{display:grid;justify-items:end;text-align:right}.wkv b{font-size:1.02rem;font-variant-numeric:tabular-nums}
+.wkv .small{white-space:nowrap}
+.spark{display:block}
+@media (max-width:420px){.wkrow{grid-template-columns:minmax(0,1fr) auto}.wkrow .spark{display:none}}
