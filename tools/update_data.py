@@ -45,6 +45,29 @@ def fetch_chart(sym, full):
     return d, c, {"mt": meta.get("regularMarketTime"), "p": meta.get("regularMarketPrice")}
 
 
+SITE = os.environ.get("SITE_URL", "").strip().rstrip("/")
+
+
+def seed_from_site(sym):
+    """저장소 파일이 없거나 배포본보다 오래됐으면 배포본(직전 사이트)을 받아 그 위에서 갱신 — 수집이 실패해도 사이트가 과거로 되돌아가지 않게 한다."""
+    if not SITE:
+        return
+    path = os.path.join(PXD, safe(sym) + ".json")
+    try:
+        req = urllib.request.Request(f"{SITE}/data/px/{urllib.parse.quote(safe(sym))}.json", headers=UA)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            remote = json.loads(r.read().decode("utf8"))
+        if not remote.get("d") or len(remote["d"]) != len(remote.get("c", [])):
+            return
+        local = json.load(open(path, encoding="utf8")) if os.path.exists(path) else None
+        if local is None or remote["d"][-1] > local["d"][-1] or (remote["d"][-1] == local["d"][-1] and len(remote["d"]) > len(local["d"])):
+            os.makedirs(PXD, exist_ok=True)
+            json.dump(remote, open(path + ".tmp", "w", encoding="utf8"), separators=(",", ":"))
+            os.replace(path + ".tmp", path)
+    except Exception:
+        pass
+
+
 def update_symbol(sym, force_full):
     path = os.path.join(PXD, safe(sym) + ".json")
     old = None
@@ -134,6 +157,7 @@ def main():
 
     def job(s):
         try:
+            seed_from_site(s)
             n, last = update_symbol(s, force)
             return s, n, last, None
         except Exception as e:
@@ -161,6 +185,9 @@ def main():
     man["v"] = 1
     json.dump(man, open(mpath + ".tmp", "w", encoding="utf8"), separators=(",", ":"))
     os.replace(mpath + ".tmp", mpath)
+    if len(fails) > max(3, int(len(syms) * 0.4)):   # 대부분 실패(야후 차단 등)면 배포를 멈춰 직전 사이트를 유지
+        print(f"실패 종목이 너무 많습니다({len(fails)}/{len(syms)}) — 배포를 중단합니다")
+        sys.exit(2)
     print(f"완료: {len(syms) - len(fails)}/{len(syms)} 종목, 실패 {fails}")
 
 

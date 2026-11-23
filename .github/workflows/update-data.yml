@@ -24,6 +24,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
@@ -31,8 +32,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - name: 시세·재무 수집 (실패 종목은 기존 값 유지)
-        run: python tools/update_data.py --full
+      - name: 시세·재무 수집 (매일 06시·수동 실행만 전체 이력, 나머지는 직전 배포본 위에 증분 갱신)
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python tools/update_data.py --full
+          else
+            python tools/update_data.py
+          fi
       - name: 거물 거래 수집 (SEC 가 제한하면 우회하지 않고 이전 데이터 유지)
         if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
         continue-on-error: true
@@ -62,8 +70,10 @@ jobs:
           python tools/youtube_update.py
       - name: 앱 버전 파일 생성 (코드가 바뀐 때만 값이 바뀜 → 설치된 앱이 스스로 새로고침)
         run: |
-          V=$(cat index.html app.js detail.js weekend.js engine.js bt-worker.js styles.css sw.js guide.html manifest.webmanifest | sha256sum | cut -c1-12)
+          V=$(cat index.html app.js detail.js weekend.js engine.js bt-worker.js knowledge.js styles.css sw.js guide.html manifest.webmanifest | sha256sum | cut -c1-12)
           echo "{\"v\":\"$V\"}" > version.json
+      - name: 수집 데이터 JSON 무결성 확인(깨진 파일이 있으면 배포하지 않음)
+        run: python tools/validate_data.py
       - name: 개인정보·비밀 점검 후 배포 파일 정리
         run: |
           python tools/privacy_check.py

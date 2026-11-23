@@ -37,6 +37,21 @@ function dtSeries(key) {
   if (k === 'px') { const s = PX[a]; if (!s || s.c.length < 5) return null; const meta = DT_DESC[a] || [(MKT_ROWS.find(r => r[1] === a) || [a])[0], '', ''], y = ['^TNX', '^FVX', '^IRX'].includes(a); return mk(meta[0], s.d, s.c, { desc: meta[1], unit: meta[2], mode: y ? 'abs' : 'pct', dec: s.c.at(-1) >= 1000 ? 0 : 2, src: 'Yahoo Finance(지연·잠정 가능)' }); }
   if (k === 'mac') { const s = MAC && MAC.series && MAC.series[a]; if (!s) return null; const m = MAC_DESC[a] || [a, '', '']; return mk(m[0], s.d, s.v, { desc: m[1], unit: m[2], mode: 'abs', src: '미 재무부·FRED 공식 자료(발표 지연 ' + (s.lag || 0) + '일)', dec: a === 'ICSA' || a === 'WALCL' ? 0 : 2 }); }
   if (k === 'wk') { const o = WK[a] && WK[a].raw; if (!o) return null; const m = WK_LIST.find(x => x[0] === a) || [a, a, '', 'h24'], idx = o.kind === 'idx'; return mk(m[1] + (idx ? ' · 최근 1개월(일봉)' : ' · 1시간봉(한국시간)'), o.t.map(x => new Date(x + 9 * 36e5).toISOString().slice(0, idx ? 10 : 16)), o.c, { desc: m[2] + (idx ? '. 최근 1개월 일봉 종가입니다.' : '. 최근 5일 1시간 간격 시세입니다.') + ' 참고 정보이며 매수 점수에는 반영되지 않습니다.', unit: idx ? '' : '$', mode: 'pct', dec: o.c.at(-1) >= 1000 ? 0 : 2, src: 'Yahoo Finance(지연·잠정 가능)' }); }
+  if (k === 'dd') { const s = PX[a]; if (!s || s.c.length < 30) return null; let m = -Infinity; const d = [], v = []; for (let i = 0; i < s.c.length; i++) { m = Math.max(m, s.c[i]); d.push(s.d[i]); v.push((s.c[i] / m - 1) * 100); } const w = S.watch.find(x => x.sym === a); return mk((w ? dispName(w) : a) + ' · 전고점 대비 하락률', d, v, { desc: '그 시점까지의 최고가(전고점)보다 얼마나 내려와 있었는지입니다. 0%면 신고가이고, 깊을수록 많이 빠진 상태입니다.', unit: '%', mode: 'abs', dec: 1, src: 'Yahoo Finance 일봉(수정주가 기준 아님·분할 반영)' }); }
+  if (k === 'per') {   // 일별 PER 추이: 종가 ÷ (발표 지연 45일을 반영한 최근 12개월 EPS)
+    const raw = valRaw(a), eps = raw && raw.t && raw.t.DilutedEPS, s = PX[a], vc = valCalc(a); if (!eps || eps.length < 3 || !s || vc.curMismatch) return dtSeries('val:' + a + ':PeRatio');
+    const ev = eps.map(x => [Date.parse(x[0]) + 45 * 864e5, x[1]]).sort((p, q) => p[0] - q[0]), d = [], v = []; let j = -1;
+    for (let i = 0; i < s.d.length; i++) { const t = Date.parse(s.d[i]); while (j + 1 < ev.length && ev[j + 1][0] <= t) j++; if (j >= 0 && ev[j][1] > 0) { const p = s.c[i] / ev[j][1]; if (p > 0 && p < 500) { d.push(s.d[i]); v.push(p); } } }
+    if (v.length < 20) return dtSeries('val:' + a + ':PeRatio'); const nm = VAL_NAMES.PeRatio;
+    return mk(nm[0] + ' · ' + a + ' (일별)', d, v, { desc: nm[1] + ' 매일의 종가를 최근 12개월 EPS(분기말+45일 뒤부터 반영 — 발표 지연)로 나눈 값입니다. 적자 구간은 건너뜁니다. 종목 화면의 현재 PER 은 가장 최근 분기 EPS 를 바로 쓰므로 몇 % 다를 수 있습니다.', unit: '배', mode: 'pct', dec: 1, src: '야후 EPS 시계열 + 일봉(앱 계산)' });
+  }
+  if (k === 'va') {   // 연간 재무 추이(ROE·이익률·성장률·부채비율·금액)
+    const raw = valRaw(a), A = raw && raw.a; if (!A) return null; const g = (n, y) => (A[n] && A[n][y] != null ? A[n][y] : null), yrs = [...new Set(Object.values(A).flatMap(o => Object.keys(o)))].sort();
+    const ratio = (n, m) => y => { const x = g(n, y), z = g(m, y); return x != null && z > 0 ? x / z * 100 : null; }, grow = n => y => { const x = g(n, y), z = g(n, String(+y - 1)); return x != null && z > 0 ? (x / z - 1) * 100 : null; }, amt = n => y => { const x = g(n, y); return x != null ? x / 1e9 : null; };
+    const D = { ROE: ['ROE(순이익÷자기자본)', '%', ratio('NetIncome', 'StockholdersEquity'), '자기자본으로 얼마나 벌었는지. 15% 이상이면 양호하다고 봅니다.'], OPM: ['영업이익률', '%', ratio('OperatingIncome', 'TotalRevenue'), '매출에서 영업이익이 차지하는 비율.'], NPM: ['순이익률', '%', ratio('NetIncome', 'TotalRevenue'), '매출에서 순이익이 차지하는 비율.'], DE: ['부채÷자기자본', '%', ratio('TotalDebt', 'StockholdersEquity'), '100% 이하면 양호, 200% 이상이면 부담으로 봅니다.'], REVG: ['매출 증가율(전년 대비)', '%', grow('TotalRevenue'), '바로 직전 연도가 있을 때만 계산합니다.'], NIG: ['순이익 증가율(전년 대비)', '%', grow('NetIncome'), '이전 순이익이 0 이하이면 계산하지 않습니다.'], REV: ['매출(십억 단위)', '', amt('TotalRevenue'), '재무제표 통화 기준입니다.'], NI: ['순이익(십억 단위)', '', amt('NetIncome'), '재무제표 통화 기준입니다.'], FCF: ['잉여현금흐름(십억 단위)', '', amt('FreeCashFlow'), '영업현금흐름에서 설비투자를 뺀 현금입니다(도키가 중시).'], OCF: ['영업현금흐름(십억 단위)', '', amt('OperatingCashFlow'), '도키 적정주가의 출발점입니다.'] };
+    const def = D[b]; if (!def) return null; const d = [], v = []; yrs.forEach(y => { const x = def[2](y); if (x != null && isFinite(x)) { d.push(y); v.push(x); } }); if (v.length < 2) return null;
+    return mk(def[0] + ' · ' + a + ' (연간)', d, v, { desc: def[3] + ' 연간 결산 기준이라 점이 몇 개뿐입니다.', unit: def[1], mode: def[1] === '%' ? 'abs' : 'pct', dec: 1, src: '야후 재무 시계열(연간)' });
+  }
   if (!MK && ['fear', 'vixts', 'breadth', 'qdd'].includes(k)) return null;
   if (k === 'fear') { const ix = MK.d.map((_, i) => i).filter(i => MK.fear[i] != null); const m = DT_DESC.fear; return mk(m[0], ix.map(i => MK.d[i]), ix.map(i => MK.fear[i]), { desc: m[1], unit: m[2], mode: 'abs', dec: 0, src: '앱 자체 계산(가격 기반)', band: [[0, 25, '탐욕'], [25, 45, '탐욕 우세'], [45, 55, '중립'], [55, 75, '공포'], [75, 100, '극단적 공포']] }); }
   if (k === 'vixts') { const ix = MK.d.map((_, i) => i).filter(i => MK.vix[i] != null && MK.v3[i]); const m = DT_DESC.vixts; return mk(m[0], ix.map(i => MK.d[i]), ix.map(i => MK.vix[i] / MK.v3[i]), { desc: m[1], unit: '', mode: 'abs', dec: 2, src: 'Yahoo Finance' }); }
@@ -46,7 +61,7 @@ function dtSeries(key) {
   if (k === 'val') { const raw = valRaw(a); const t = raw && raw.t && raw.t[b]; if (!t || t.length < 2) return null; const nm = VAL_NAMES[b] || [b, '']; return mk(nm[0] + ' · ' + a, t.map(x => x[0]), t.map(x => x[1]), { desc: nm[1], unit: '', mode: 'pct', dec: b === 'MarketCap' ? 0 : 2, src: '야후 재무 시계열(분기 단위 갱신)' }); }
   return null;
 }
-const dtFmt = (s, x) => x == null || !isFinite(x) ? '–' : (s.unit === '$' ? '$' : '') + Number(x).toLocaleString('en-US', { maximumFractionDigits: s.dec, minimumFractionDigits: Math.min(s.dec, 2) }) + (s.unit === '%' ? '%' : '');
+const dtFmt = (s, x) => x == null || !isFinite(x) ? '–' : (s.unit === '$' ? '$' : '') + Number(x).toLocaleString('en-US', { maximumFractionDigits: s.dec, minimumFractionDigits: Math.min(s.dec, 2) }) + (s.unit === '%' ? '%' : s.unit === '배' ? '배' : '');
 const dtDiff = (s, a, b) => s.mode === 'abs' ? (s.unit === '%' ? (a - b >= 0 ? '+' : '') + (a - b).toFixed(2) + '%p' : (a - b >= 0 ? '+' : '') + (a - b).toFixed(s.dec > 1 ? 2 : Math.max(s.dec, 1))) : (b ? F.pct(a / b - 1) : '–');
 const dtCls = (s, a, b) => s.mode === 'abs' ? '' : a - b > 0 ? 'pos' : a - b < 0 ? 'neg' : '';   // 금리·공포지수 등은 오름=좋음이 아니므로 색을 칠하지 않음
 function dtAgo(s, days) { const cut = new Date(Date.parse(s.d.at(-1)) - days * 864e5).toISOString().slice(0, 10); for (let i = s.d.length - 1; i >= 0; i--) if (s.d[i] <= cut) return [s.d[i], s.v[i]]; return null; }
@@ -116,32 +131,37 @@ function dtDomain(key) {
 
 /* ───────── 종목: 투자지표(PER 등) ───────── */
 const VAL_NAMES = { PeRatio: ['PER(주가수익비율)', '주가 ÷ 주당순이익(최근 12개월). 낮을수록 이익 대비 싸지만 업종·성장성에 따라 기준이 다릅니다.'], ForwardPeRatio: ['선행 PER', '야후가 제공하는 예상 이익 기준 PER. 추정치 오류가 있을 수 있어 참고만 하세요.'], PbRatio: ['PBR(주가순자산비율)', '주가 ÷ 주당순자산. 1 미만이면 장부가보다 싼 상태(자산형 업종에서 의미).'], PsRatio: ['PSR(주가매출비율)', '시가총액 ÷ 매출. 적자 성장주 비교에 쓰입니다.'], PegRatio: ['PEG', 'PER ÷ 이익성장률. 추정치 기반이라 참고만 하세요.'], EnterprisesValueEBITDARatio: ['EV/EBITDA', '기업가치(시총+순부채) ÷ 영업이익+감가상각. 부채 구조가 다른 기업 비교용.'], MarketCap: ['시가총액', '', ''], DilutedEPS: ['주당순이익(EPS, 12개월)', '', ''] };
-const FUNDX = {}; let fundxLoaded = false, fundxBusy = {};
+const FUNDX = {}; let fundxLoaded = false, fundxBusy = {}, fundxFail = {};
 const valRaw = sym => (FUND[sym] && FUND[sym].raw) || (FUNDX[sym] && FUNDX[sym].raw) || null;
 async function ensureFundRaw(sym) {
-  const w = S.watch.find(x => x.sym === sym); if (!w || w.type === 'etf' || valRaw(sym) || fundxBusy[sym]) return;
+  const w = S.watch.find(x => x.sym === sym); if (!w || w.type === 'etf' || valRaw(sym) || fundxBusy[sym] || Date.now() - (fundxFail[sym] || 0) < 6e5) return;
   if (!fundxLoaded) { fundxLoaded = true; try { Object.assign(FUNDX, (await IDB.get('fundx')) || {}); } catch (e) { } if (valRaw(sym)) return; }
   const b = proxyBase(); if (!b) return; fundxBusy[sym] = 1;
-  try { const j = await jget(b + '/api/fund?s=' + encodeURIComponent(sym), 12000); if (j && j.a) { FUNDX[sym] = { raw: j, t: Date.now() }; IDB.set('fundx', FUNDX); } else FUNDX[sym] = { raw: { a: {}, t: {} }, t: Date.now() }; } catch (e) { fundxBusy[sym] = 0; return; }
+  try { const j = await jget(b + '/api/fund?s=' + encodeURIComponent(sym), 12000); if (j && j.a) { FUNDX[sym] = { raw: j, t: Date.now() }; IDB.set('fundx', FUNDX); } else FUNDX[sym] = { raw: { a: {}, t: {} }, t: Date.now() }; } catch (e) { fundxBusy[sym] = 0; fundxFail[sym] = Date.now(); return; }
   if (view === 'stock' && curSym === sym) softRender();
 }
 const lastOf = (o) => { if (!o) return null; const k = Object.keys(o).sort(); return k.length ? o[k.at(-1)] : null; };
+const prevYr = o => { if (!o) return null; const k = Object.keys(o).sort(); return k.length > 1 && +k.at(-1) - +k.at(-2) === 1 ? o[k.at(-2)] : null; };   // 바로 직전 연도가 있을 때만
 const prevOf = (o, back = 1) => { if (!o) return null; const k = Object.keys(o).sort(); return k.length > back ? o[k[k.length - 1 - back]] : null; };
 function valCalc(sym) {
   const raw = valRaw(sym), a = raw && raw.a || {}, t = raw && raw.t || {}, f = FUND[sym] || {}, px = priceOf(sym), o = {};
   const tl = k => t[k] && t[k].length ? t[k].at(-1) : null, eps = tl('DilutedEPS'), mc = tl('MarketCap'), ni = lastOf(a.NetIncome), rev = lastOf(a.TotalRevenue), oi = lastOf(a.OperatingIncome), eq = lastOf(a.StockholdersEquity), debt = lastOf(a.TotalDebt), cash = lastOf(a.CashAndCashEquivalents), fcf = lastOf(a.FreeCashFlow), ocf = lastOf(a.OperatingCashFlow), div = lastOf(a.CashDividendsPaid);
   o.eps = eps ? eps[1] : null; o.per = px && o.eps > 0 ? px / o.eps : (o.eps != null ? 'neg' : null); o.perAsof = eps ? eps[0] : null;
   const perH = (t.PeRatio || []).map(x => x[1]).filter(x => x > 0); o.perMed = perH.length >= 4 ? perH.slice().sort((x, y) => x - y)[Math.floor(perH.length / 2)] : null;
-  o.fper = tl('ForwardPeRatio'); o.pbr = tl('PbRatio'); o.psr = tl('PsRatio'); o.evebitda = tl('EnterprisesValueEBITDARatio'); o.peg = tl('PegRatio'); o.mc = mc ? mc[1] : null; o.mcAsof = mc ? mc[0] : null;
-  o.pcf = px && f.cfps > 0 ? px / f.cfps : null; o.cfy = px && f.cfps > 0 ? f.cfps / px : null; o.fcfy = fcf && o.mc ? fcf / o.mc : null; o.cagr = f.cagr ?? null;
-  o.roe = ni != null && eq > 0 ? ni / eq : null; o.opm = oi != null && rev > 0 ? oi / rev : null; o.npm = ni != null && rev > 0 ? ni / rev : null; o.de = debt != null && eq > 0 ? debt / eq : null; o.netcash = debt != null && cash != null ? cash - debt : null;
-  const rp = prevOf(a.TotalRevenue), np = prevOf(a.NetIncome); o.revg = rev != null && rp > 0 ? rev / rp - 1 : null; o.nig = ni != null && np > 0 ? ni / np - 1 : null; o.divy = div != null && o.mc ? -div / o.mc : null;
+  const ype = tl('PeRatio'), ypev = ype ? ype[1] : null; o.curMismatch = !!(typeof o.per === 'number' && ypev > 0 && (o.per / ypev > 1.5 || o.per / ypev < .67)); if (o.curMismatch) o.per = ypev;   // 재무 통화와 주가 통화가 다르면 야후 값을 쓰고 통화가 섞이는 비율은 숨긴다
+  const shs = lastOf(a.BasicAverageShares), mcNow = shs && px ? shs * px : null;
+  const tv = k => { const x = tl(k); return x ? x[1] : null; };
+  o.fper = tv('ForwardPeRatio'); o.pbr = tv('PbRatio'); o.psr = tv('PsRatio'); o.evebitda = tv('EnterprisesValueEBITDARatio'); o.peg = tv('PegRatio'); o.mc = mc ? mc[1] : null; o.mcAsof = mc ? mc[0] : null;
+  o.pcf = px && f.cfps > 0 && !o.curMismatch ? px / f.cfps : null; o.cfy = px && f.cfps > 0 && !o.curMismatch ? f.cfps / px : null; o.fcfy = fcf && (mcNow || o.mc) && !o.curMismatch ? fcf / (mcNow || o.mc) : null; o.cagr = f.cagr ?? null;
+  o.roe = ni != null && eq > 0 ? ni / eq : null; o.opm = oi != null && rev > 0 ? oi / rev : null; o.npm = ni != null && rev > 0 ? ni / rev : null; o.de = debt != null && eq > 0 ? debt / eq : null; o.netcash = debt != null && cash != null && !o.curMismatch ? cash - debt : null;
+  const rp = prevYr(a.TotalRevenue), np = prevYr(a.NetIncome); o.revg = rev != null && rp > 0 ? rev / rp - 1 : null; o.nig = ni != null && np > 0 ? ni / np - 1 : null; o.divy = div != null && (mcNow || o.mc) && !o.curMismatch ? -div / (mcNow || o.mc) : null;
   o.year = a.TotalRevenue ? Object.keys(a.TotalRevenue).sort().at(-1) : null; o.has = !!(raw && (Object.keys(a).length || Object.keys(t).length)); return o;
 }
 function valCard(sym) {
   const w = S.watch.find(x => x.sym === sym), ent = FEAT[sym], lv = LIVE[sym]; if (!w || !ent) return '';
   const Fx = ent.F, B = Fx.B, i = Fx.n - 1, fm = (x, d = 1) => x == null || !isFinite(x) ? '–' : x.toFixed(d), pc = (x, d = 1) => x == null || !isFinite(x) ? '–' : (x * 100).toFixed(d) + '%';
-  const row = (name, val, tone, note, dtk) => `<${dtk ? 'button data-dt="' + dtk + '"' : 'div'} class="sig" style="grid-template-columns:1fr auto;width:100%;${dtk ? 'background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;text-align:left;cursor:pointer' : ''}"><div><div>${name}${dtk ? ' <span class="muted small">›</span>' : ''}</div><div class="small muted">${note}</div></div><div class="right"><b>${val}</b>${tone ? '<div>' + pill(tone[0], tone[1]) + '</div>' : ''}</div></${dtk ? 'button' : 'div'}>`;
+  const sp = key => { try { const s = dtSeries(key); return s && s.v.length >= 3 ? s.v.slice(-48) : null; } catch (e) { return null; } };
+  const row = (name, val, tone, note, dtk, spark) => `<${dtk ? 'button data-dt="' + dtk + '"' : 'div'} class="sig" style="grid-template-columns:1fr auto;width:100%;${dtk ? 'background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;text-align:left;cursor:pointer' : ''}"><div><div>${name}${dtk ? ' <span class="muted small">›</span>' : ''}</div><div class="small muted">${note}</div>${spark ? '<div style="margin-top:4px">' + wkSpark(spark, true, true) + '</div>' : ''}</div><div class="right"><b>${val}</b>${tone ? '<div>' + pill(tone[0], tone[1]) + '</div>' : ''}</div></${dtk ? 'button' : 'div'}>`;
   const T = (v, good, bad, lowGood) => v == null || !isFinite(v) ? null : lowGood ? (v <= good ? ['양호', 'good'] : v >= bad ? ['부담', 'warn'] : ['보통', 'mut']) : (v >= good ? ['양호', 'good'] : v <= bad ? ['약함', 'warn'] : ['보통', 'mut']);
   let h = `<div class="card"><h2>투자지표 <span class="muted small">두 채널 관점별 · 점수에는 반영하지 않는 참고 정보</span></h2>`;
   h += `<h3 style="margin-top:4px">디벨롭 관점 — 추세·타이밍 <span class="muted small">(가격 기반)</span></h3>${row('고점(52주) 대비', pc(B.dd[i]), B.dd[i] <= -.2 ? ['눌림', 'good'] : null, '많이 빠질수록 분할 매수 구간(레버리지는 기초지수 환산)')}${row('200일선 이격', pc(B.dev200[i]), B.dev200[i] >= .25 ? ['과열', 'warn'] : B.dev200[i] <= -.1 ? ['아래', 'good'] : null, '200일 이동평균 대비 현재가 위치')}${row('주봉 RSI', fm(B.rW[i]), B.rW[i] >= 70 ? ['과열', 'warn'] : B.rW[i] <= 40 ? ['침체', 'good'] : null, '70↑ 과열 · 40↓ 침체(디벨롭 기준)')}${row('일봉 RSI', fm(B.rD[i]), B.rD[i] >= 70 ? ['과열', 'warn'] : B.rD[i] <= 30 ? ['과매도', 'good'] : null, '30↓ 과매도 · 70↑ 과매수')}`;
@@ -154,25 +174,25 @@ function valCard(sym) {
   h += `<h3 style="margin-top:14px">도키 관점 — 현금흐름·가치 <span class="muted small">(영업현금흐름 중심)</span></h3>`;
   h += row('주가 ÷ 영업현금흐름(P/CF)', v.pcf != null ? fm(v.pcf) + '배' : '–', T(v.pcf, 18, 30, true), '도키는 영업현금흐름 기반 18배를 적정 멀티플로 사용 (' + (FUND[sym] ? '기준 ' + FUND[sym].asof : '') + ')');
   h += row('영업현금흐름 수익률', pc(v.cfy), T(v.cfy, .055, .02), '주당 영업현금흐름 ÷ 주가 (높을수록 싸다)');
-  h += row('잉여현금흐름(FCF) 수익률', pc(v.fcfy), T(v.fcfy, .04, 0), '설비투자까지 뺀 현금 ÷ 시가총액. 도키는 설비투자 부담도 확인', null);
-  h += row('영업현금흐름 연평균 성장(CAGR)', pc(v.cagr, 0), T(v.cagr, .15, 0), '적정가 계산에 5~20% 범위로 보수 반영');
+  h += row('잉여현금흐름(FCF) 수익률', pc(v.fcfy), T(v.fcfy, .04, 0), '설비투자까지 뺀 현금 ÷ 시가총액. 도키는 설비투자 부담도 확인 (추세는 FCF 금액)', 'va:' + sym + ':FCF', sp('va:' + sym + ':FCF'));
+  h += row('영업현금흐름 연평균 성장(CAGR)', pc(v.cagr, 0), T(v.cagr, .15, 0), '적정가 계산에 5~20% 범위로 보수 반영', 'va:' + sym + ':OCF', sp('va:' + sym + ':OCF'));
   h += row('적정가 대비 현재가', pf != null ? (pf * 100).toFixed(0) + '%' : '–', pf == null ? null : pf <= .85 ? ['저평가', 'good'] : pf >= 1.2 ? ['고평가', 'warn'] : ['적정권', 'mut'], fair ? '적정가 ' + fmtPx(sym, fair) + ' (' + ent.fairSrc + ')' : '적정가 계산 불가(현금흐름 부족)');
   h += `<h3 style="margin-top:14px">밸류에이션 <span class="muted small">(일반 지표 — 두 채널이 핵심으로 쓰진 않음)</span></h3>`;
-  const perTxt = v.per === 'neg' ? '적자' : v.per != null ? fm(v.per) + '배' : '–', perNote = (v.per > 0 && v.perMed ? `과거 중앙값 ${fm(v.perMed)}배 대비 ${(v.per / v.perMed * 100).toFixed(0)}%` : '주가 ÷ 12개월 주당순이익') + (v.perAsof ? ` · EPS ${v.eps != null ? v.eps.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '–'} (${v.perAsof})` : '');
-  h += row('PER', perTxt, typeof v.per === 'number' && v.perMed ? (v.per <= v.perMed * .85 ? ['과거보다 낮음', 'good'] : v.per >= v.perMed * 1.2 ? ['과거보다 높음', 'warn'] : ['과거 수준', 'mut']) : null, perNote, 'val:' + sym + ':PeRatio');
+  const perTxt = v.per === 'neg' ? '적자' : v.per != null ? fm(v.per) + '배' : '–', perNote = (v.per > 0 && v.perMed ? `과거 중앙값 ${fm(v.perMed)}배 대비 ${(v.per / v.perMed * 100).toFixed(0)}%` : '주가 ÷ 12개월 주당순이익') + (v.curMismatch ? ' · 재무 통화 차이로 야후 제공 PER 사용' : '') + (v.perAsof ? ` · EPS ${v.eps != null ? v.eps.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '–'} (${v.perAsof})` : '');
+  h += row('PER', perTxt, typeof v.per === 'number' && v.perMed ? (v.per <= v.perMed * .85 ? ['과거보다 낮음', 'good'] : v.per >= v.perMed * 1.2 ? ['과거보다 높음', 'warn'] : ['과거 수준', 'mut']) : null, perNote, 'per:' + sym, sp('per:' + sym));
   h += row('선행 PER (야후 추정)', v.fper != null ? fm(v.fper) + '배' : '–', null, '추정치라 틀릴 수 있음 — 참고만', 'val:' + sym + ':ForwardPeRatio');
-  h += row('PBR', v.pbr != null ? fm(v.pbr, 2) + '배' : '–', null, '주가 ÷ 주당순자산', 'val:' + sym + ':PbRatio');
-  h += row('PSR', v.psr != null ? fm(v.psr, 2) + '배' : '–', null, '시가총액 ÷ 매출', 'val:' + sym + ':PsRatio');
-  h += row('EV/EBITDA', v.evebitda != null ? fm(v.evebitda) + '배' : '–', null, '부채까지 포함한 기업가치 ÷ 영업이익+감가상각', 'val:' + sym + ':EnterprisesValueEBITDARatio');
+  h += row('PBR', v.pbr != null ? fm(v.pbr, 2) + '배' : '–', null, '주가 ÷ 주당순자산', 'val:' + sym + ':PbRatio', sp('val:' + sym + ':PbRatio'));
+  h += row('PSR', v.psr != null ? fm(v.psr, 2) + '배' : '–', null, '시가총액 ÷ 매출', 'val:' + sym + ':PsRatio', sp('val:' + sym + ':PsRatio'));
+  h += row('EV/EBITDA', v.evebitda != null ? fm(v.evebitda) + '배' : '–', null, '부채까지 포함한 기업가치 ÷ 영업이익+감가상각', 'val:' + sym + ':EnterprisesValueEBITDARatio', sp('val:' + sym + ':EnterprisesValueEBITDARatio'));
   h += row('시가총액', bigU(v.mc), null, v.mcAsof ? '기준 ' + v.mcAsof : '', 'val:' + sym + ':MarketCap');
   h += row('배당수익률', pc(v.divy), null, '연간 배당 지급액 ÷ 시가총액');
   h += `<h3 style="margin-top:14px">재무 건전성 <span class="muted small">(${esc(v.year || '')} 사업연도 기준)</span></h3>`;
-  h += row('ROE (자기자본이익률)', pc(v.roe), T(v.roe, .15, .05), '순이익 ÷ 자기자본 — 15%↑ 양호');
-  h += row('영업이익률', pc(v.opm), T(v.opm, .2, .05), '영업이익 ÷ 매출');
-  h += row('순이익률', pc(v.npm), T(v.npm, .15, .03), '순이익 ÷ 매출');
-  h += row('매출 증가율 (전년 대비)', pc(v.revg), T(v.revg, .1, 0), '');
-  h += row('순이익 증가율 (전년 대비)', pc(v.nig), T(v.nig, .1, 0), '');
-  h += row('부채 ÷ 자기자본', v.de != null ? (v.de * 100).toFixed(0) + '%' : '–', T(v.de, 1, 2, true), v.netcash != null ? (v.netcash >= 0 ? '순현금 ' : '순부채 ') + bigU(Math.abs(v.netcash)) : '100% 이하 양호 · 200%↑ 부담');
+  h += row('ROE (자기자본이익률)', pc(v.roe), T(v.roe, .15, .05), '순이익 ÷ 자기자본 — 15%↑ 양호', 'va:' + sym + ':ROE', sp('va:' + sym + ':ROE'));
+  h += row('영업이익률', pc(v.opm), T(v.opm, .2, .05), '영업이익 ÷ 매출', 'va:' + sym + ':OPM', sp('va:' + sym + ':OPM'));
+  h += row('순이익률', pc(v.npm), T(v.npm, .15, .03), '순이익 ÷ 매출', 'va:' + sym + ':NPM', sp('va:' + sym + ':NPM'));
+  h += row('매출 증가율 (전년 대비)', pc(v.revg), T(v.revg, .1, 0), '', 'va:' + sym + ':REVG', sp('va:' + sym + ':REVG'));
+  h += row('순이익 증가율 (전년 대비)', pc(v.nig), T(v.nig, .1, 0), '', 'va:' + sym + ':NIG', sp('va:' + sym + ':NIG'));
+  h += row('부채 ÷ 자기자본', v.de != null ? (v.de * 100).toFixed(0) + '%' : '–', T(v.de, 1, 2, true), v.netcash != null ? (v.netcash >= 0 ? '순현금 ' : '순부채 ') + bigU(Math.abs(v.netcash)) : '100% 이하 양호 · 200%↑ 부담', 'va:' + sym + ':DE', sp('va:' + sym + ':DE'));
   h += `<p class="small muted" style="margin:10px 0 0">두 채널은 영상에서 <b>영업현금흐름 기반 적정주가·설비투자·추세(200일선)·RSI</b>를 핵심으로 다룹니다. PER·PBR 등은 일반 참고 지표이며, ‘양호·부담’ 표시는 통용되는 대략적 기준이라 <b>업종마다 다릅니다</b>. 야후 파이낸스 재무 자료(분기 갱신·지연·오류 가능) 기반이고 매수 점수에는 반영되지 않습니다.</p></div>`;
   return h;
 }
@@ -191,7 +211,7 @@ function lensCompare(sym) {
     } else { const g = sg(R[L]); body = `<div class="small b" style="margin-top:6px">켜진 신호 (${g.on.length}개)</div>${g.on.map(li).join('') || '<div class="small muted">켜진 신호 없음</div>'}${g.warn.length ? '<div class="small b" style="margin-top:6px">경고</div>' + g.warn.map(li).join('') : ''}<div class="small b" style="margin-top:6px">아직 안 켜진 신호 (${g.off.length}개)</div>${g.off.map(lo).join('') || '<div class="small muted">모두 켜짐</div>'}`; }
     const why = L === 'P' ? '디벨롭: 낙폭·200일선·RSI·MACD·VIX 등 <b>시장 타이밍(기술적) 신호</b>를 겹쳐 분할 매수.' : L === 'D' ? '도키: <b>적정주가·추세·지지선</b> 등 가치/구조 신호 + 비중 관리를 중시.' : '두 관점의 합의.';
     return `<details class="rule" ${L === cur ? 'open' : ''}><summary style="cursor:pointer;list-style:none"><div class="row">${ring(x.score, L)}<div style="flex:1;min-width:0"><div><b style="color:${LC[L]}">${LN[L]}</b> ${actPill(x, p)}</div><div class="small">${esc(p.label)}</div></div></div></summary>
-      <div class="small muted" style="margin:6px 0">${why}</div>${p.lines.map(l => `<div class="small">• ${esc(l)}</div>`).join('')}${p.amount ? `<div class="small b" style="margin-top:4px">권장 ${fmtAmt(sym, p.amount)} (${p.shares}주)</div>` : ''}${body}</details>`;
+      <div class="small muted" style="margin:6px 0">${why}</div>${p.lines.map(l => `<div class="small">• ${esc(l)}</div>`).join('')}${p.amount ? `<div class="small b" style="margin-top:4px">계산 예시 ${fmtAmt(sym, p.amount)} (${p.shares}주)</div>` : ''}${body}</details>`;
   }).join('');
   const ks = typeof stanceOf === 'function' && typeof KN !== 'undefined' && KN && !KN.none ? ['dm', 'doki'].map(c => { const v = stanceOf(c)[sym]; return v && v.m30 ? `<span class="small">${c === 'dm' ? '디벨롭' : '도키'} 최근 30일 ${v.m30}회 언급${v.bull > v.bear ? ' · 우호' : v.bear > v.bull ? ' · 경계' : ''}</span>` : ''; }).filter(Boolean).join(' · ') : '';
   return `<div class="card"><h2>세 관점 한눈에 <span class="muted small">눌러서 펼치기</span></h2>${blocks}${ks ? `<p class="small muted" style="margin:8px 0 0">채널 언급: ${ks}</p>` : ''}<p class="small muted" style="margin:6px 0 0">점수는 확률이 아닙니다. 과거 검증에서 의미가 있었던 건 <b>신호가 처음 켜진 구간</b>뿐이라 앱은 ‘신규 신호’만 매수로 안내합니다.</p></div>`;
@@ -245,4 +265,27 @@ function reorderCards(el, keys) {
 function collapseCard(html, open) {
   if (!html) return '';
   return html.replace('<div class="card"><h2>', `<details class="card"${open ? ' open' : ''}><summary class="b sumh">`).replace('</h2>', '</summary>').replace(/<\/div>\s*$/, '</details>');
+}
+
+/* ───────── 종목: 고점 대비 하락 카드(52주 고점·전고점·역대 낙폭) ───────── */
+function ddEpisodes(c, thr) {   // 고점→바닥→회복 구간 중 낙폭이 thr 이상인 것
+  const eps = []; let pk = 0, tr = 0, inDD = false;
+  for (let i = 1; i < c.length; i++) {
+    if (c[i] >= c[pk]) { if (inDD) { eps.push({ pk, tr, rec: i }); inDD = false; } pk = i; tr = i; }
+    else { if (!inDD) { inDD = true; tr = i; } if (c[i] < c[tr]) tr = i; }
+  }
+  if (inDD) eps.push({ pk, tr, rec: null });
+  return eps.map(e => ({ ...e, depth: c[e.tr] / c[e.pk] - 1 })).filter(e => e.depth <= -thr);
+}
+function ddCard(sym) {
+  const s = PX[sym], w = S.watch.find(x => x.sym === sym); if (!s || s.c.length < 60) return '';
+  const c = s.c, d = s.d, n = c.length, last = c[n - 1], i52 = Math.max(0, n - 252), hi52 = Math.max(...c.slice(i52)), lo52 = Math.min(...c.slice(i52));
+  const ia = c.indexOf(Math.max(...c)), ath = c[ia], i52h = i52 + c.slice(i52).indexOf(hi52), days = (a, b) => Math.round((Date.parse(d[b]) - Date.parse(d[a])) / 864e5);
+  const eps = ddEpisodes(c, w && w.lev > 1 ? .3 : .15), mdd = eps.reduce((m, e) => (e.depth < m.depth ? e : m), { depth: 0 }), top = [...eps].sort((x, y) => x.depth - y.depth).slice(0, 5), pos = hi52 > lo52 ? (last - lo52) / (hi52 - lo52) : 1;
+  const dd52 = last / hi52 - 1, ddA = last / ath - 1;
+  return `<div class="card"><h2>고점 대비 하락 <span class="muted small">전고점·52주 고점·역대 낙폭</span></h2>
+  <dl class="kv"><dt>현재가</dt><dd>${fmtPx(sym, last)}</dd><dt>52주 고점 (${esc(d[i52h])})</dt><dd>${fmtPx(sym, hi52)} · <b class="${cls(dd52)}">${F.pct(dd52)}</b></dd><dt>전고점 = 역대 최고 (${esc(d[ia])})</dt><dd>${fmtPx(sym, ath)} · <b class="${cls(ddA)}">${F.pct(ddA)}</b></dd><dt>전고점 이후</dt><dd>${ia === n - 1 ? '오늘이 신고가' : days(ia, n - 1).toLocaleString() + '일 경과'}</dd><dt>52주 저점 대비</dt><dd class="${cls(last / lo52 - 1)}">${F.pct(last / lo52 - 1)}</dd><dt>역대 최대 낙폭</dt><dd><b class="neg">${F.pct(mdd.depth)}</b>${mdd.pk != null && mdd.depth ? ` <span class="muted small">(${esc(d[mdd.pk])} → ${esc(d[mdd.tr])})</span>` : ''}</dd></dl>
+  <div style="margin:10px 0 4px"><div class="small muted" style="display:flex;justify-content:space-between"><span>52주 저점 ${fmtPx(sym, lo52)}</span><span>52주 고점 ${fmtPx(sym, hi52)}</span></div><div class="bar"><i style="width:${Math.round(Math.min(1, Math.max(0, pos)) * 100)}%"></i></div><div class="small muted" style="margin-top:2px">52주 범위 안에서 ${Math.round(Math.min(1, Math.max(0, pos)) * 100)}% 위치</div></div>
+  <div class="row" style="margin:8px 0"><button class="btn sm" data-dt="dd:${esc(sym)}">하락률 추이 보기</button></div>
+  ${top.length ? `<h3>과거 큰 하락 구간 (${w && w.lev > 1 ? '-30%' : '-15%'} 이상, 깊은 순)</h3><div class="tw"><table><thead><tr><th>고점일</th><th>바닥일</th><th class="n">하락</th><th class="n">회복</th></tr></thead><tbody>${top.map(e => `<tr><td>${esc(d[e.pk])}</td><td>${esc(d[e.tr])}</td><td class="n neg">${F.pct(e.depth, 0)}</td><td class="n">${e.rec == null ? '<span class="muted">진행 중</span>' : days(e.pk, e.rec).toLocaleString() + '일'}</td></tr>`).join('')}</tbody></table></div><p class="small muted" style="margin:6px 0 0">회복 = 고점에서 다시 그 가격으로 돌아오기까지 걸린 기간. 과거 낙폭이 미래를 보장하지 않으며, 점수에는 반영하지 않는 참고 정보입니다.</p>` : '<p class="small muted" style="margin:0">기준 이상의 큰 하락 구간이 없었습니다.</p>'}</div>`;
 }

@@ -9,3 +9,11 @@ config.json
 
 # 팀 공유 문서는 저장소 밖에 보관
 puddle-trader-guide/
+
+# 비밀·개인 백업·로그
+*.bak
+*.log
+.dev.vars
+backup*.json
+puddle-trader-backup*
+sec_*.txt

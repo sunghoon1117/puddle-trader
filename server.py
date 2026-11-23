@@ -5,7 +5,8 @@
 """
 import http.server, socketserver, urllib.request, urllib.parse, json, os, socket, sys, time, threading, subprocess
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8777
+PORT = int(next((a for a in sys.argv[1:] if a.isdigit()), 8777))
+LAN = "--lan" in sys.argv   # 기본은 이 PC 에서만 열림(휴대폰 테스트는 --lan)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 UA = {"User-Agent": "puddle-trader/1.0 (personal research)"}
 CACHE = {}
@@ -141,6 +142,7 @@ def lan_ip():
 if __name__ == "__main__":
     threading.Thread(target=updater, daemon=True).start()
     print(f"PC     : http://localhost:{PORT}")
-    print(f"모바일 : http://{lan_ip()}:{PORT}   (같은 와이파이)")
+    if LAN:
+        print(f"모바일 : http://{lan_ip()}:{PORT}   (같은 와이파이)")
     print("시세는 백그라운드에서 자동 갱신됩니다. 종료: Ctrl+C")
-    S(("0.0.0.0", PORT), H).serve_forever()
+    S(("0.0.0.0" if LAN else "127.0.0.1", PORT), H).serve_forever()

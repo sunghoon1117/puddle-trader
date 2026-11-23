@@ -43,6 +43,9 @@ FUNDS = [
 ]
 
 
+SITE_FAIL = set()   # 배포 사이트에서 읽지 못한 파일 이름
+
+
 class SecBlocked(Exception):
     pass
 
@@ -110,6 +113,7 @@ def prev_from_site(name, default):
             site = json.loads(web(f"{SITE}/data/tracker/{name}", timeout=20))
         except Exception:
             site = None
+            SITE_FAIL.add(name)
     loc = load(name, None)
     if site is None:
         return loc if loc is not None else default
@@ -402,7 +406,7 @@ def main():
     co = prev_from_site("co.json", {}); cache = prev_from_site("cusip.json", {})
     status = {"updated": int(time.time()), "sec_ok_at": int(state.get("sec_ok_at", 0)), "sec": "skipped", "house": "skip", "fmp": "off", "new": 0, "notes": []}
     block_until = 0.0 if SEC_LOCAL else float(state.get("sec_block_until", 0))   # SEC 가 막으면 6시간 동안 요청 자체를 멈춰 제한이 풀리게 함(재시도 폭주 방지)
-    sec_cooldown = time.time() < block_until
+    sec_cooldown = time.time() < block_until or (bool(SITE) and not SEC_LOCAL and "state.json" in SITE_FAIL)   # 휴지 상태를 모르면 서버는 SEC 를 건드리지 않는다
     try:
         status["new"] += poll_house(trades, log); status["house"] = "ok"
     except Exception as e:
@@ -435,7 +439,11 @@ def main():
     except Exception as e:
         status["sec"] = "error"; status["notes"].append("SEC 수집 오류: " + str(e)[:80])
     rows = sorted(trades.values(), key=lambda t: (t.get("filed_at") or "", t.get("trade_date") or ""), reverse=True)[:1500]
-    dump = lambda n, o: json.dump(o, open(os.path.join(OUT, n), "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
+    def dump(n, o):   # 임시 파일에 쓴 뒤 교체(중간에 끊겨도 잘린 JSON 이 남지 않게)
+        p = os.path.join(OUT, n)
+        with open(p + ".tmp", "w", encoding="utf8") as f:
+            json.dump(o, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(p + ".tmp", p)
     dump("trades.json", rows); dump("f13.json", st["f13"]); dump("co.json", co); dump("cusip.json", cache)
     status["sec_ok_at"] = int(state.get("sec_ok_at", 0))
     dump("state.json", {"seen": sorted(st["seen"])[-4000:], "f13seen": st["f13seen"], "sec_block_until": block_until if time.time() < block_until else 0, "sec_ok_at": status["sec_ok_at"]}); dump("status.json", status)

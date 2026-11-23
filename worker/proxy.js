@@ -7,7 +7,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods
    남용 방지: 허용 출처(github.io · localhost)만, 요청 길이·빈도 제한. 보유종목 등 개인정보는 앱이 보내지 않음. ── */
 const AI_MODELS = ['@cf/google/gemma-4-26b-a4b-it', '@cf/qwen/qwen3-30b-a3b-fp8', '@cf/meta/llama-3.1-8b-instruct-fp8'];
 const hits = new Map(), hitsR = new Map();
-const okOrigin = o => !!o && (/^https:\/\/[a-z0-9-]+\.github\.io$/i.test(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o));
+const okOrigin = (o, env) => !!o && ((env && env.APP_ORIGIN ? o === env.APP_ORIGIN : /^https:\/\/[a-z0-9-]+\.github\.io$/i.test(o)) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o));
 /* Gemini(서버 비밀 키 GEMINI_API_KEY 가 있을 때 우선 사용): 한국어 품질이 높고, search=true 면 구글 검색으로 최신 정보 반영.
    키는 Cloudflare 비밀 값으로만 저장되어 앱·저장소에 노출되지 않음. 실패하면 무료 Workers AI 로 자동 대체. */
 let modelCache = { t: 0, list: [] }, goodModel = '', noThink = false;
@@ -68,7 +68,7 @@ async function handleAI(req, env) {
   const origin = req.headers.get('origin') || '', H = { 'access-control-allow-origin': origin, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'content-type': 'application/json; charset=utf-8', vary: 'origin' };
   if (req.method === 'OPTIONS') return new Response(null, { headers: H });
   const tokenOk = !!(env && env.AI_TOKEN && req.headers.get('x-ai-token') === String(env.AI_TOKEN).trim());
-  if (!okOrigin(origin) && !tokenOk) return new Response('{"error":"forbidden"}', { status: 403, headers: H });
+  if (!okOrigin(origin, env) && !tokenOk) return new Response('{"error":"forbidden"}', { status: 403, headers: H });
   if (req.method === 'GET') {
     const u2 = new URL(req.url); let models;
     if (u2.searchParams.get('models') && env && env.GEMINI_API_KEY) {   // 진단: 이 키로 쓸 수 있는 모델 이름 목록(키는 노출되지 않음)
@@ -107,6 +107,7 @@ export default {
     const u = new URL(req.url);
     if (u.pathname === '/api/ai') return handleAI(req, env);
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+    if (u.pathname.startsWith('/api/') && !okOrigin(req.headers.get('origin') || '', env)) return new Response('{"error":"forbidden"}', { status: 403, headers: CORS });   // 앱 주소·로컬 개발만 허용
     if (u.pathname === '/api/batch') {   // 여러 종목 최근 일봉(장중 잠정 포함)을 한 번에 — 앱이 20초마다 호출
       const syms = (u.searchParams.get('s') || '').toUpperCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 30), rng = u.searchParams.get('range') || '5d';
       if (!syms.length || !syms.every(s => /^[A-Z0-9.^=-]{1,15}$/.test(s)) || !/^[0-9a-z]{2,4}$/.test(rng)) return new Response('{"error":"bad request"}', { status: 400, headers: CORS });
