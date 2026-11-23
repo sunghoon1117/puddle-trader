@@ -230,3 +230,19 @@ function stackTables() {
   });
 }
 try { new MutationObserver(stackTables).observe(document.querySelector('main'), { childList: true, subtree: true }); } catch (e) { }
+
+/* ───────── 화면 구성 도우미: 제목으로 카드를 찾아 원하는 순서로 재배치(카드가 있던 자리를 그대로 채움) ───────── */
+function reorderCards(el, keys) {
+  const kids = [...el.children], head = k => { const h = k.querySelector(':scope > h2, :scope > summary'); return h ? h.textContent : ''; };
+  const slots = [], picked = [];
+  kids.forEach((k, i) => { const t = head(k), idx = keys.findIndex(x => t.includes(x)); if (idx >= 0) { slots.push(i); picked.push([idx, k]); } });
+  if (picked.length < 2) return;
+  picked.sort((a, b) => a[0] - b[0]);
+  const out = kids.slice(); slots.forEach((slot, n) => { out[slot] = picked[n][1]; });
+  out.forEach(k => el.appendChild(k));
+}
+/* 첫 제목(h2) 전체를 접이식 카드로 바꾼다(요약 줄만 보이고 눌러서 펼침) */
+function collapseCard(html, open) {
+  if (!html) return '';
+  return html.replace('<div class="card"><h2>', `<details class="card"${open ? ' open' : ''}><summary class="b sumh">`).replace('</h2>', '</summary>').replace(/<\/div>\s*$/, '</details>');
+}

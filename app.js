@@ -307,16 +307,16 @@ function vToday() {
   h += `<div class="card full" style="margin-top:12px"><h2>오늘의 행동 <span class="pill" style="background:none;color:${LC[L]}">${LN[L]} 관점</span></h2>`;
   if (!items.length) h += `<div class="empty">시세를 받는 중이거나 데이터가 없습니다. 우측 상단 ↻ 를 눌러보세요.</div>`;
   else {
-    h += buys.length ? `<p class="small muted" style="margin:0 0 8px">신규 매수 신호 ${buys.length}개 — 신호가 처음 켜진 구간에서만, 차수별로 나눠서. <a href="#verify" data-v="verify" style="color:var(--info)">점수 신뢰도 보기</a></p>` + buys.map(card).join('') : `<div class="empty" style="padding:12px">지금은 <b>${LN[L]}</b> 관점에서 <b>새로 켜진 매수 신호</b>가 없습니다.<br>아무 때나 사지 않고 현금을 지키는 구간입니다.</div>`;
+    h += buys.length ? `<p class="small muted" style="margin:0 0 8px">신규 매수 신호 ${buys.length}개 — 신호가 처음 켜진 구간에서만, 차수별로 나눠서. <a href="#verify" data-v="verify" style="color:var(--info)">점수 신뢰도 보기</a></p>` + buys.slice(0, 5).map(card).join('') + (buys.length > 5 ? `<details style="margin-bottom:10px"><summary class="b" style="cursor:pointer;padding:6px 0">나머지 신규 신호 ${buys.length - 5}개 보기</summary><div style="margin-top:8px">${buys.slice(5).map(card).join('')}</div></details>` : '') : `<div class="empty" style="padding:12px">지금은 <b>${LN[L]}</b> 관점에서 <b>새로 켜진 매수 신호</b>가 없습니다.<br>아무 때나 사지 않고 현금을 지키는 구간입니다.</div>`;
     if (trims.length) h += `<h3 style="margin:10px 0 8px">과열 — 신규 매수 중단</h3>` + trims.map(card).join('');
     if (watch.length) h += `<details style="margin-top:10px"><summary class="b" style="cursor:pointer;padding:6px 0">관찰·지속 중 (${watch.length}) <span class="muted small">점수가 높아도 신호가 이미 지속 중이면 신규 진입 우위가 낮습니다</span></summary><div style="margin-top:8px">` + watch.map(card).join('') + `</div></details>`;
   }
   h += `</div>`;
   const wr = TR.trades.filter(t => t.source !== 'ptr' && t.side === 'BUY' && Date.now() - Date.parse(t.filed_at) < 21 * 864e5).map(t => ({ t, a: analyzeTrade(t, false).score })).sort((x, y) => y.a - x.a).slice(0, 3);
   if (wr.length) h += `<div class="card"><h2>최근 거물 매수 <button class="btn sm" data-v="whales">더 보기</button></h2>${wr.map(x => tradeCard(x.t)).join('')}</div>`;
-  if (lastChanges.length) h += `<div class="card"><h2>신호 변화 <span class="muted small">직전 대비</span></h2>` + lastChanges.slice(0, 12).map(c => `<div class="row small" style="padding:3px 0"><b>${esc(c.s)}</b> ${pill(LN[c.L])} ${c.a}차 → <b>${c.b}차</b></div>`).join('') + `</div>`;
+  if (lastChanges.length) h += collapseCard(`<div class="card"><h2>신호 변화 <span class="muted small">직전 대비</span></h2>` + lastChanges.slice(0, 12).map(c => `<div class="row small" style="padding:3px 0"><b>${esc(c.s)}</b> ${pill(LN[c.L])} ${c.a}차 → <b>${c.b}차</b></div>`).join('') + `</div>`);
   const al = (S.alertLog || []).filter(a => Date.now() - a.t < 48 * 36e5).slice(0, 3); if (al.length) h += `<div class="card"><h2>가격 알림</h2>${al.map(a => `<div class="small" style="padding:3px 0">${esc(a.msg)} <span class="muted">${new Date(a.t).toLocaleString('ko-KR', { hour12: false })}</span></div>`).join('')}</div>`;
-  if (KN && !KN.none) h += newVideosCard() + stanceCard(items);
+  if (KN && !KN.none) h += collapseCard(newVideosCard()) + collapseCard(stanceCard(items));
   $('#v-today').innerHTML = h;
 }
 function stanceOf(ch) {   // 최근 30일 영상(자동 수집분 포함)에서 종목별 언급·우호/경계 표현 집계
@@ -366,7 +366,9 @@ function vStock() {
   ${whaleCardFor(w.sym)}
   <div class="card">
   <h2 style="margin-top:14px">종목 설정</h2><div class="form"><label class="f">레버리지 배율<select id="sLev">${[1, 2, 3].map(x => `<option ${x === w.lev ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="f">시장 베타<input id="sBeta" inputmode="decimal" value="${w.beta ?? 1}"></label><label class="f">유형<select id="sType"><option value="etf" ${w.type === 'etf' ? 'selected' : ''}>ETF</option><option value="stock" ${w.type === 'stock' ? 'selected' : ''}>개별주</option></select></label></div><div class="row" style="margin-top:10px"><button class="btn sm" id="sSave">저장</button><span class="sp"></span><button class="btn sm danger" id="delSym">삭제</button></div></div>`;
-  el.innerHTML = h; drawChart(Fx, ev);
+  el.innerHTML = h;
+  reorderCards(el, ['세 관점 한눈에', '가격 · 200일선', '투자지표', '적정주가', '이 종목에서', 'AI 해설', '가격 알림', '거물·내부자', '종목 설정']);
+  drawChart(Fx, ev);
 }
 function drawChart(Fx, ev) {
   const cv = $('#cv'); if (!cv) return; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr);
@@ -423,6 +425,7 @@ function vVerify() {
   const ls = ledgerStats(), lt = ls[L];
   h += `<div class="card"><h2>실전 추적 <span class="muted small">앱이 낸 추천의 이후 결과</span></h2>${lt.total ? `<dl class="kv"><dt>기록된 ${LN[L]} 매수 신호</dt><dd>${lt.total}건</dd><dt>20일 경과(승률 · 평균)</dt><dd>${lt.h20.n ? pc(lt.h20.win) + ' · ' + F.pct(lt.h20.mean) + ' (n=' + lt.h20.n + ')' : '대기 중'}</dd><dt>60일 경과(승률 · 평균)</dt><dd>${lt.h60.n ? pc(lt.h60.win) + ' · ' + F.pct(lt.h60.mean) + ' (n=' + lt.h60.n + ')' : '대기 중'}</dd></dl><div class="tw" style="margin-top:8px"><table><thead><tr><th>날짜</th><th>종목</th><th>단계</th><th class="n">신호가</th><th class="n">20일</th><th class="n">60일</th></tr></thead><tbody>${[...lt.items].reverse().slice(0, 12).map(e => `<tr><td>${e.date.slice(5)}</td><td><b>${esc(e.sym)}</b></td><td>${e.k}차</td><td class="n">${F.usd2(e.px)}</td><td class="n ${cls(e.r20)}">${e.r20 == null ? '–' : F.pct(e.r20)}</td><td class="n ${cls(e.r60)}">${e.r60 == null ? '–' : F.pct(e.r60)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">이 앱이 신호를 내면 자동 기록되고, 20·60일 뒤 실제 수익률로 채점됩니다. 과거 검증이 실전에서도 맞는지 확인하는 용도입니다.</p>'}</div>`;
   $('#v-verify').innerHTML = h;
+  reorderCards($('#v-verify'), ['3관점 요약', '점수는 믿을 만한가', '실제로 이 규칙대로', '관점 상세', '신호별 효과', '한국 종목 검증', '실전 추적', '자동 보정 현황']);
 }
 
 /* ───────── 내 계좌 ───────── */
@@ -632,6 +635,7 @@ function vMarket() {
   h += aiCard('market:all');
   h += `<div class="card"><h2>AI 심층 보고서 만들기 <span class="muted small">선택</span></h2><p class="small" style="margin:0 0 8px">현재 앱 데이터(시장 국면·공포지수·금리 등)를 바탕으로 AI가 시장 보고서를 작성합니다. 서버 AI를 호출하며 비용은 없습니다.</p><div class="row"><button class="btn pri" id="mpGen">앱에서 바로 생성</button></div><div class="small muted" id="mpMsg" style="margin-top:6px">${AI_INFO ? (AI_INFO.gemini ? '서버 AI: <b>Gemini</b> — 무료 키는 구글 검색 연동이 제한되어 <b>앱 데이터 범위 안에서만 믿을 수 있습니다</b>(최신 뉴스·PMI 같은 외부 수치는 틀릴 수 있음).' : '서버 AI: 무료 Cloudflare AI — 웹 검색이 없어 <b>앱 데이터만으로 작성</b>합니다. 최신 뉴스 반영 보고서는 Gemini 키 연결 후 가능합니다.') : ''}</div><div id="mpOut" style="margin-top:10px"></div></div>`;
   el.innerHTML = h;
+  reorderCards(el, ['주말 시장', '장외 시장', 'CNN 공포탐욕', '주요 시장 데이터', '시장 국면 판별', '영역별 점수', '경제 일정', '이 국면, 과거엔', 'AI 해설', 'AI 심층 보고서']);
 }
 async function buildMarketPrompt() {
   if (!MPROMPT) MPROMPT = await (await fetch('data/market_prompt.md?v=' + Math.floor(Date.now() / 36e5))).text();

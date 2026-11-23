@@ -1,13 +1,12 @@
 'use strict';
 /* 디벨롭 — 주말·장외 시장: 미국 증시가 닫힌 동안 확인할 수 있는 참고 시세
    · 나스닥100·나스닥 종합 지수: 직전 정규장 종가(주말에는 금요일 종가)
-   · 비트코인·이더리움: 주말에도 거래되는 24시간 시장(위험선호 참고)
-   · IG 'Weekend US Tech 100' 은 증권사 CFD 상품이라 무료 공식 시세가 없어 외부 링크로만 연결한다.
+    · IG 'Weekend US Tech 100' 은 증권사 CFD 상품이라 무료 공식 시세가 없어 외부 링크로만 연결한다.
    매수 점수에는 반영하지 않는다.
    app.js·detail.js 보다 먼저 로드되며 전역(view, F, esc, cls, jget, proxyBase, marketOpen, softRender)은 호출 시점에 참조한다. */
 const IG_WEEKEND_URL = 'https://www.ig.com/en/indices/markets-indices/weekend-us-tech-100-e1';
 // [심볼, 이름, 설명, 종류] — idx: 일봉(종가 기준) / h24: 1시간봉(24시간 거래)
-const WK_LIST = [['^NDX', '나스닥100 지수', '미국 정규장 종가 기준', 'idx'], ['^IXIC', '나스닥 종합 지수', '미국 정규장 종가 기준', 'idx'], ['BTC-USD', '비트코인', '24시간 거래 · 주말에도 움직임', 'h24'], ['ETH-USD', '이더리움', '24시간 거래 · 주말에도 움직임', 'h24']];
+const WK_LIST = [['^NDX', '나스닥100 지수', '미국 정규장 종가 기준', 'idx'], ['^IXIC', '나스닥 종합 지수', '미국 정규장 종가 기준', 'idx']];
 let WK = {}, WKat = 0;
 const etParts = ms => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms)).map(x => [x.type, x.value]));
 function lastUsClose(now) {   // 가장 최근 평일 16:00(미 동부) 시각(UTC ms)
@@ -77,7 +76,7 @@ function wkCard() {
     return `<button class="wkrow" data-dt="wk:${esc(sym)}"><div class="wkn"><b>${esc(nm)}</b><span class="small muted">${v.live ? '거래 중' : esc(desc)}</span></div>${wkSpark(v.spark, up)}<div class="wkv"><b>${px}</b><span class="small ${cls(v.chgClose)}">${F.pct(v.chgClose)} <span class="muted">미 정규장 마감 대비</span></span><span class="small ${cls(v.chg24)}">${F.pct(v.chg24)} <span class="muted">24시간</span></span></div></button>`;
   };
   return `<div class="card"><h2>${weekend ? '주말 시장' : '장외 시장'} <span class="muted small">${esc(status)}</span></h2>${WK_LIST.map(row).join('')}
-  <div class="row" style="margin-top:10px"><a class="btn sm" href="${IG_WEEKEND_URL}" target="_blank" rel="noopener noreferrer">IG ‘Weekend US Tech 100’ 보기 ↗</a></div>
-  <details style="margin-top:8px"><summary class="small b" style="cursor:pointer">이 시세는 무엇인가요?</summary><p class="small muted" style="margin:6px 0 0">나스닥 지수는 미국 정규장이 닫혀 있는 동안 <b>직전 종가</b>(주말에는 금요일 종가)를 보여 줍니다. 비트코인·이더리움은 주말에도 거래되어 위험선호를 가늠하는 참고용이며 나스닥과 항상 같이 움직이진 않습니다(‘미 정규장 마감 대비’는 직전 평일 16시, 미 동부 기준). <b>‘Weekend US Tech 100’</b>은 IG가 주말에 파는 CFD 상품이라 무료 공식 시세를 앱에 가져올 수 없어 <b>외부 링크</b>로만 연결합니다(증권사 서비스이며 투자 권유가 아닙니다. 레버리지 CFD는 원금을 크게 잃을 수 있습니다). 시각은 한국시간이고, 모두 참고 정보로 매수 점수에는 반영되지 않습니다.${cl ? ' (직전 정규장 마감: 한국시간 ' + kst(cl) + ')' : ''}</p></details></div>`;
+  <div class="row" style="margin-top:8px"><a class="btn sm" href="${IG_WEEKEND_URL}" target="_blank" rel="noopener noreferrer">IG ‘Weekend US Tech 100’ 보기 ↗</a></div>
+</div>`;
 }
 setInterval(() => { if (!document.hidden && (view === 'today' || view === 'market')) loadWK(); }, 60e3);

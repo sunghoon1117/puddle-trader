@@ -7,8 +7,8 @@
 | 경로 | 역할 |
 |---|---|
 | `engine.js` | **공용 엔진**: 지표·신호·3관점 점수·차수·이벤트연구·시뮬레이션·자동 보정·시장 국면(`E.regime`). 브라우저와 Web Worker 양쪽에서 실행. 라이브 추천과 백테스트가 같은 코드를 쓴다 |
-| `detail.js` | 지표 클릭 상세 시트(`data-dt` 키: px/mac/fear/cnn/val/ind/dom), 종목 탭의 3관점 비교·투자지표(PER 등) 카드, 종목 검색 추가. `app.js` 보다 먼저 로드 |
-| `weekend.js` | 장외·주말 시장 카드(나스닥100·종합 지수 직전 종가, BTC·ETH 24시간). 선물은 표시하지 않음. IG 'Weekend US Tech 100' 은 CFD 라 무료 시세가 없어 외부 링크로만 연결, 점수 미반영 |
+| `detail.js` | 카드 재배치·접기 도우미(`reorderCards`, `collapseCard`), 지표 클릭 상세 시트(`data-dt` 키: px/mac/fear/cnn/val/ind/dom), 종목 탭의 3관점 비교·투자지표(PER 등) 카드, 종목 검색 추가. `app.js` 보다 먼저 로드 |
+| `weekend.js` | 장외·주말 시장 카드(나스닥100·종합 지수 직전 종가). 선물·코인은 표시하지 않음. IG 'Weekend US Tech 100' 은 CFD 라 무료 시세가 없어 외부 링크로만 연결, 점수 미반영 |
 | `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF, 점수 신뢰도 곡선, 한국 종목, 국면 과거 검증) |
 | `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ✓검증 ⚙설정), 서비스 워커, 사용 설명서 |
 | `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
