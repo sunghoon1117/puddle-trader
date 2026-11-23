@@ -202,3 +202,38 @@ div.wkrow{cursor:default}
 .wkv .small{white-space:nowrap}
 .spark{display:block}
 @media (max-width:420px){.wkrow{grid-template-columns:minmax(0,1fr) auto}.wkrow .spark{display:none}}
+
+/* ───── 내 계좌: 보유·거래 카드 ───── */
+.holds{display:grid;gap:10px}
+.hold{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--card)}
+.hold-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.hold-t b{font-size:1.1rem}
+.hold-pl{text-align:right;font-weight:800;font-size:1.25rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.hold-pl .small{display:block;font-weight:600;font-size:.82rem}
+.hold-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 8px;margin:12px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+.hold-g .l{display:block;font-size:.76rem;color:var(--mut);line-height:1.3}
+.hold-g b{display:block;font-size:.98rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.hold-b{gap:8px}
+.trls{display:grid}
+.trl{padding:10px 0;border-bottom:1px solid var(--line)}.trl:last-child{border:0}
+.trl-h{display:flex;align-items:center;gap:8px}
+.trl-b{display:flex;justify-content:space-between;gap:10px;margin-top:4px;font-size:.92rem;font-variant-numeric:tabular-nums}
+@media (min-width:900px){.holds{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:360px){.hold-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ───── 모바일 가독성 마감 ───── */
+@media (max-width:600px){
+  .card+.card,.grid+.card,.card+.grid,.hero+.card,.card+details.card{margin-top:14px}
+  .small{line-height:1.5}
+  .note{font-size:.9rem}
+  .sig>div>div:first-child{font-size:.96rem;line-height:1.4}
+  .kv{font-size:.92rem;gap:5px 12px}
+  .rule{padding:12px 0}
+  .btn{padding:10px 14px}
+  input,select,textarea{font-size:16px}   /* iOS 확대 방지 */
+  .chip{font-size:.92rem}
+  .card>h2{font-size:1.08rem}
+  details>summary{padding:4px 0}
+}
+.three span,.hold-g .l,.hero-stats .sub,.mk .l,.wkv .small,.trl-b .small{font-size:.8rem}
+th{font-size:.8rem}
