@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b1020">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://production.dataviz.cnn.io; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0f1d" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="디벨롭">
@@ -32,7 +34,11 @@
       <section id="v-verify" class="view"></section>
       <section id="v-acct" class="view"></section>
       <section id="v-set" class="view"></section>
-      <p class="disclaimer">두 유튜브 채널(developmong·doki_investing)의 공개 영상 관점을 규칙화한 <b>개인용 참고 도구</b>입니다. 과거 검증은 미래 수익을 보장하지 않으며 레버리지 ETF는 원금 대부분을 잃을 수 있습니다. 모든 판단과 책임은 본인에게 있습니다.</p>
+      <div class="disclaimer"><b>반드시 읽어 주세요</b>
+        <ul><li>두 유튜브 채널(developmong·doki_investing)의 공개 영상 관점을 규칙화한 <b>개인용 참고 도구</b>이며 투자 권유가 아닙니다.</li>
+        <li>점수는 <b>확률이 아닙니다</b>. 과거 검증은 미래 수익을 보장하지 않고, 상승한 종목 위주라 좋아 보이는 쪽으로 치우칠 수 있습니다.</li>
+        <li>거물 거래·영상 분석·시장 국면·투자지표·고점 대비 하락·장외 시장은 <b>점수에 반영되지 않는 참고 정보</b>입니다.</li>
+        <li>레버리지 ETF는 원금 대부분을 잃을 수 있고, 한국 종목은 미국 시장 지표로 계산합니다. 모든 판단과 책임은 본인에게 있습니다.</li></ul></div>
     </main>
   </div>
   <nav class="bottom" id="botNav" aria-label="하단 메뉴" role="tablist"></nav>

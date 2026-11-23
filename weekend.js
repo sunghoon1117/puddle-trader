@@ -7,6 +7,7 @@
 const IG_WEEKEND_URL = 'https://www.ig.com/en/indices/markets-indices/weekend-us-tech-100-e1';
 // [심볼, 이름, 설명, 종류] — idx: 일봉(종가 기준) / h24: 1시간봉(24시간 거래)
 const WK_LIST = [['^NDX', '나스닥100 지수', '미국 정규장 종가 기준', 'idx'], ['^IXIC', '나스닥 종합 지수', '미국 정규장 종가 기준', 'idx']];
+const maxOf = a => { let m = -Infinity; for (const x of a) if (x > m) m = x; return m; }, minOf = a => { let m = Infinity; for (const x of a) if (x < m) m = x; return m; };   // maxOf(배열) 은 배열이 아주 길면 스택 한도에 걸린다
 let WK = {}, WKat = 0, WKerr = false;
 // 미국 증시 휴장일·조기 마감일(NYSE 공시 기준 2026~2027). 이후 연도는 갱신이 필요하다.
 const US_HOL = new Set(['2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25', '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24']);
@@ -15,7 +16,8 @@ const etParts = ms => Object.fromEntries(new Intl.DateTimeFormat('en-US', { time
 function lastUsClose(now) {   // 가장 최근 평일 16:00(미 동부) 시각(UTC ms)
   for (let back = 0; back <= 6; back++) {
     const p = etParts(now - back * 864e5); if (p.weekday === 'Sat' || p.weekday === 'Sun' || US_HOL.has(`${p.year}-${p.month}-${p.day}`)) continue;
-    for (const off of [20, 21]) { const t = Date.parse(`${p.year}-${p.month}-${p.day}T${off}:00:00Z`), q = etParts(t); if ((+q.hour % 24) === 16 && q.day === p.day && t <= now) return t; }
+    const early = US_EARLY.has(`${p.year}-${p.month}-${p.day}`), hr = early ? 13 : 16;   // 조기 마감일은 13시(미 동부)
+    for (const off of early ? [17, 18] : [20, 21]) { const t = Date.parse(`${p.year}-${p.month}-${p.day}T${off}:00:00Z`), q = etParts(t); if ((+q.hour % 24) === hr && q.day === p.day && t <= now) return t; }
   }
   return null;
 }
@@ -60,7 +62,7 @@ async function loadWK(force) {
   if (any && (view === 'today' || view === 'market')) softRender();
 }
 const wkSpark = (a, up, neutral) => {
-  if (!a || a.length < 3) return ''; const lo = Math.min(...a), hi = Math.max(...a), W = 64, H = 26;
+  if (!a || a.length < 3) return ''; const lo = minOf(a), hi = maxOf(a), W = 64, H = 26;
   const pts = a.map((v, i) => (i / (a.length - 1) * W).toFixed(1) + ',' + (H - 2 - (hi === lo ? .5 : (v - lo) / (hi - lo)) * (H - 4)).toFixed(1)).join(' ');
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${neutral ? 'var(--acc)' : up ? 'var(--good)' : 'var(--bad)'}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 };
@@ -68,7 +70,7 @@ function wkCard() {
   loadWK(); const now = Date.now(), p = etParts(now), min = (+p.hour % 24) * 60 + +p.minute, weekend = p.weekday === 'Sat' || p.weekday === 'Sun' || (p.weekday === 'Fri' && min >= 960);
   const nx = marketOpen() ? null : nextUsOpen(now), left = nx ? Math.max(0, nx - now) : 0, cl = lastUsClose(now);
   const kst = ms => new Date(ms + 9 * 36e5).toISOString().slice(5, 16).replace('T', ' ').replace('-', '/');
-  const status = marketOpen() ? '미국 정규장 거래 중' : `미국 정규장 휴장 · 개장까지 ${Math.floor(Math.round(left / 6e4) / 60)}시간 ${Math.round(left / 6e4) % 60}분 (한국시간 ${kst(nx)})`;
+  const yr = +p.year, tbl = yr > 2027 ? ' · 휴장일 표가 2027년까지라 갱신이 필요합니다' : '', status = (marketOpen() ? '미국 정규장 거래 중' : `미국 정규장 휴장 · 개장까지 ${Math.floor(Math.round(left / 6e4) / 60)}시간 ${Math.round(left / 6e4) % 60}분 (한국시간 ${kst(nx)})`) + tbl;
   const row = ([sym, nm, desc, kind]) => {
     const v = WK[sym];
     if (!v) return `<div class="wkrow"><div class="wkn"><b>${esc(nm)}</b><span class="small muted">${WKerr ? '불러오지 못했습니다' : proxyBase() ? '불러오는 중…' : '시세 서버 주소가 없습니다'}</span></div></div>`;

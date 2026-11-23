@@ -1,6 +1,6 @@
 :root{
-  --bg:#f3f5f9;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e3e8f0;--acc:#2563eb;--acc-ink:#fff;
-  --good:#047857;--goodbg:#d9f7e8;--warn:#b45309;--warnbg:#fdf0c8;--bad:#dc2626;--badbg:#fde2e2;--info:#2563eb;--infobg:#dfe9fe;
+  --bg:#f3f5f9;--card:#fff;--ink:#0f172a;--mut:#5b6a80;--line:#e3e8f0;--acc:#2563eb;--acc-ink:#fff;
+  --good:#047857;--goodbg:#d9f7e8;--warn:#9a4608;--warnbg:#fdf0c8;--bad:#c81e1e;--badbg:#fde2e2;--info:#1d4ed8;--infobg:#dfe9fe;
   --lp:#2563eb;--ld:#7c3aed;--lc:#059669;--shadow:0 1px 2px rgba(15,23,42,.05),0 6px 18px rgba(15,23,42,.05);--r:16px;
   --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
@@ -73,7 +73,7 @@ canvas{width:100%;height:260px;display:block;touch-action:pan-y}
 .modal .sheet{background:var(--card);width:min(560px,100%);max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + var(--safe-b));display:grid;gap:12px}
 .progress{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin:6px 0}.progress i{display:block;height:100%;background:var(--acc);width:0;transition:width .2s}
 .note{border-left:4px solid var(--warn);background:var(--warnbg);padding:10px 12px;border-radius:10px;font-size:.84rem}
-.disclaimer{margin-top:22px;font-size:.75rem;color:var(--mut);border-top:1px solid var(--line);padding-top:12px}
+.disclaimer{margin-top:22px;font-size:.85rem;line-height:1.55;color:var(--ink);border-top:1px solid var(--line);padding-top:12px}.disclaimer ul{margin:6px 0 0;padding-left:18px}.disclaimer li{margin:3px 0}
 nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + var(--safe-b))}
 .nb{display:flex;flex-direction:column;align-items:center;gap:1px;border:0;background:none;color:var(--mut);font:inherit;font-size:.7rem;padding:6px 2px;border-radius:12px;cursor:pointer;min-height:48px}
 .nb .ic{font-size:1.25rem;line-height:1.2}.nb[aria-selected=true]{color:var(--acc);font-weight:700}
@@ -237,3 +237,6 @@ div.wkrow{cursor:default}
 }
 .three span,.hold-g .l,.hero-stats .sub,.mk .l,.wkv .small,.trl-b .small{font-size:.8rem}
 th{font-size:.8rem}
+
+.iconbtn{width:44px;height:44px}
+[data-dt]:not(button):not(a):focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}

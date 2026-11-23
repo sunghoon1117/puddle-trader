@@ -57,15 +57,26 @@ def seed_from_site(sym):
         req = urllib.request.Request(f"{SITE}/data/px/{urllib.parse.quote(safe(sym))}.json", headers=UA)
         with urllib.request.urlopen(req, timeout=20) as r:
             remote = json.loads(r.read().decode("utf8"))
-        if not remote.get("d") or len(remote["d"]) != len(remote.get("c", [])):
+        rd_, rc_ = remote.get("d") or [], remote.get("c") or []
+        if len(rd_) < 20 or len(rd_) != len(rc_) or rd_ != sorted(set(rd_)) or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in rc_):
             return
         local = json.load(open(path, encoding="utf8")) if os.path.exists(path) else None
-        if local is None or remote["d"][-1] > local["d"][-1] or (remote["d"][-1] == local["d"][-1] and len(remote["d"]) > len(local["d"])):
+        if local is None or rd_[-1] > local["d"][-1] or (rd_[-1] == local["d"][-1] and len(rd_) > len(local["d"]) and remote.get("t", 0) >= local.get("t", 0)):
             os.makedirs(PXD, exist_ok=True)
             json.dump(remote, open(path + ".tmp", "w", encoding="utf8"), separators=(",", ":"))
             os.replace(path + ".tmp", path)
     except Exception:
         pass
+
+
+def site_json(rel):
+    if not SITE:
+        return None
+    try:
+        with urllib.request.urlopen(urllib.request.Request(f"{SITE}/{rel}", headers=UA), timeout=20) as r:
+            return json.loads(r.read().decode("utf8"))
+    except Exception:
+        return None
 
 
 def update_symbol(sym, force_full):
@@ -78,7 +89,12 @@ def update_symbol(sym, force_full):
             old = None
     full = old is None or len(old.get("c", [])) < 300
     d, c, meta = fetch_chart(sym, full)
-    if len(c) < 20:
+    if old and not full and d and old.get("d"):
+        gap = (time.mktime(time.strptime(d[0], "%Y-%m-%d")) - time.mktime(time.strptime(old["d"][-1], "%Y-%m-%d"))) / 86400
+        if gap > 7:   # 이전 파일이 너무 낡아 한 달 증분으로는 중간이 비므로 전체 이력을 다시 받는다
+            full = True
+            d, c, meta = fetch_chart(sym, True)
+    if len(c) < (20 if full else 5):
         raise RuntimeError("데이터 부족")
     if old and not full:
         m = dict(zip(old["d"], old["c"]))
@@ -153,6 +169,11 @@ def main():
     mpath = os.path.join(DATA, "manifest.json")
     man = json.load(open(mpath, encoding="utf8")) if os.path.exists(mpath) else {"symbols": {}}
     man.setdefault("symbols", {})
+    sm = site_json("data/manifest.json")   # 배포본의 종목별 갱신 시각을 먼저 반영(수집이 실패한 종목의 옛 시각 방지)
+    if isinstance(sm, dict):
+        for k, v in (sm.get("symbols") or {}).items():
+            if isinstance(v, dict) and v.get("t", 0) > man["symbols"].get(k, {}).get("t", 0):
+                man["symbols"][k] = v
     fails = []
 
     def job(s):
@@ -173,6 +194,11 @@ def main():
     # 재무(적정가 자동 계산): 개별주만, 하루 1회 이상 갱신하지 않음
     fpath = os.path.join(DATA, "fund.json")
     fund = json.load(open(fpath, encoding="utf8")) if os.path.exists(fpath) else {}
+    sf = site_json("data/fund.json")   # 배포본의 재무를 먼저 받아, 갱신 시각이 더 최신인 종목은 그 값을 유지
+    if isinstance(sf, dict):
+        for k, v in sf.items():
+            if isinstance(v, dict) and v.get("t", 0) > fund.get(k, {}).get("t", 0):
+                fund[k] = v
     for w in uni["watch"]:
         if w.get("type") == "stock" and (force or time.time() - fund.get(w["sym"], {}).get("t", 0) > 20 * 3600):
             try:
@@ -180,7 +206,8 @@ def main():
             except Exception as e:
                 print("재무 실패", w["sym"], str(e)[:60])
     json.dump(fund, open(fpath, "w", encoding="utf8"), separators=(",", ":"), ensure_ascii=False)
-    man["updated"] = int(time.time())
+    if len(fails) < len(syms):   # 전부 실패했으면 '갱신됨'으로 표시하지 않는다
+        man["updated"] = int(time.time())
     man["fails"] = fails
     man["v"] = 1
     json.dump(man, open(mpath + ".tmp", "w", encoding="utf8"), separators=(",", ":"))

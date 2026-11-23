@@ -71,7 +71,7 @@ async function handleAI(req, env) {
   if (!okOrigin(origin, env) && !tokenOk) return new Response('{"error":"forbidden"}', { status: 403, headers: H });
   if (req.method === 'GET') {
     const u2 = new URL(req.url); let models;
-    if (u2.searchParams.get('models') && env && env.GEMINI_API_KEY) {   // 진단: 이 키로 쓸 수 있는 모델 이름 목록(키는 노출되지 않음)
+    if (u2.searchParams.get('models') && env && env.GEMINI_API_KEY && tokenOk) {   // 진단: 이 키로 쓸 수 있는 모델 이름 목록(키는 노출되지 않음)
       try { const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': env.GEMINI_API_KEY } }), j = await r.json(); models = r.ok ? (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace('models/', '')) : { error: (j.error && j.error.message) || r.status }; } catch (e) { models = { error: String(e).slice(0, 100) }; }
     }
     return new Response(JSON.stringify({ gemini: !!(env && env.GEMINI_API_KEY), cf: !!(env && env.AI), models }), { headers: H });
@@ -80,12 +80,12 @@ async function handleAI(req, env) {
   let b; try { b = await req.json(); } catch (e) { return new Response('{"error":"bad json"}', { status: 400, headers: H }); }
   const report = b.mode === 'report', bucket = report ? hitsR : hits, ip = req.headers.get('cf-connecting-ip') || 'x', now = Date.now(), arr = (bucket.get(ip) || []).filter(t => now - t < 10 * 60e3), cap = report ? 4 : 20;
   if (arr.length >= cap) return new Response('{"error":"요청이 너무 많습니다. 잠시 후 다시 시도하세요."}', { status: 429, headers: H });
-  arr.push(now); bucket.set(ip, arr); if (bucket.size > 500) bucket.clear();
+  arr.push(now); bucket.set(ip, arr); if (bucket.size > 500) { for (const k of bucket.keys()) { bucket.delete(k); if (bucket.size <= 400) break; } }
   const prompt = String(b.prompt || '').slice(0, report ? 45000 : 14000), system = String(b.system || '').slice(0, 2500);
   if (!prompt) return new Response('{"error":"empty"}', { status: 400, headers: H });
   let geminiErr = '';
   if (env && env.GEMINI_API_KEY) {
-    const vid = /^[\w-]{11}$/.test(String(b.video || '')) ? [{ file_data: { file_uri: 'https://www.youtube.com/watch?v=' + b.video } }] : [];
+    const vid = tokenOk && /^[\w-]{11}$/.test(String(b.video || '')) ? [{ file_data: { file_uri: 'https://www.youtube.com/watch?v=' + b.video } }] : [];
     const g = await callGemini(env, system, prompt, { search: !!b.search || report, maxTokens: vid.length ? 2500 : report ? 8192 : 1500, parts: vid });
     if (g.text) return new Response(JSON.stringify({ ...g, engine: 'gemini' }), { headers: H });
     geminiErr = g.error || '';   // 진단용(구글이 돌려준 오류 문구, 키는 포함되지 않음)
@@ -96,10 +96,10 @@ async function handleAI(req, env) {
     try {
       const r = await env.AI.run(m, { messages: [{ role: 'system', content: system || '한국어로 간결하게 답하세요.' }, { role: 'user', content: prompt }], max_tokens: 900, temperature: 0.3 });
       const text = (r && (r.response || (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) || (typeof r === 'string' ? r : '');
-      if (text) return new Response(JSON.stringify({ text: String(text).replace(/<think>[\s\S]*?<\/think>/g, '').trim(), model: m, engine: 'cf', geminiError: geminiErr || undefined }), { headers: H });
+      if (text) return new Response(JSON.stringify({ text: String(text).replace(/<think>[\s\S]*?<\/think>/g, '').trim(), model: m, engine: 'cf', geminiError: tokenOk ? (geminiErr || undefined) : undefined }), { headers: H });
     } catch (e) { err = String(e && e.message || e).slice(0, 160); }
   }
-  return new Response(JSON.stringify({ error: 'AI 호출 실패(무료 한도 초과일 수 있음)', detail: err }), { status: 502, headers: H });
+  return new Response(JSON.stringify({ error: 'AI 호출 실패(무료 한도 초과일 수 있음)', detail: tokenOk ? err : undefined }), { status: 502, headers: H });
 }
 
 export default {

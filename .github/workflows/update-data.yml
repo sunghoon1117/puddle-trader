@@ -33,6 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: 시세·재무 수집 (매일 06시·수동 실행만 전체 이력, 나머지는 직전 배포본 위에 증분 갱신)
+        continue-on-error: ${{ github.event_name == 'push' }}   # 코드 수정 배포는 시세 수집 실패와 무관하게 진행(직전 배포본 데이터를 이어받는다)
         env:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
@@ -79,6 +80,7 @@ jobs:
           python tools/privacy_check.py
           mkdir -p _site
           cp -r index.html guide.html styles.css app.js detail.js weekend.js engine.js bt-worker.js knowledge.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png icon-maskable-512.png data _site/
+          find _site -name '*.tmp' -delete
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
