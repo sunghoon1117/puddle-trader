@@ -240,3 +240,17 @@ th{font-size:.8rem}
 
 .iconbtn{width:44px;height:44px}
 [data-dt]:not(button):not(a):focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+/* ───── 포지션·수급 ───── */
+.pc{height:10px;border-radius:99px;background:var(--bad);overflow:hidden;opacity:.9}.pc .pc-c{display:block;height:100%;background:var(--good)}
+.oc{display:grid;gap:3px;margin-top:4px}
+.oc-h,.oc-r{display:grid;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);gap:6px;align-items:center}
+.oc-h{font-size:.8rem;color:var(--mut)}.oc-h span:first-child{text-align:right}.oc-h span:nth-child(2){text-align:center}
+.oc-r b{font-size:.82rem;text-align:center;font-variant-numeric:tabular-nums}
+.oc-r.now{background:var(--infobg);border-radius:8px}.oc-r.now b{color:var(--info)}
+.oc-p,.oc-c{display:flex;align-items:center;gap:4px;min-width:0;height:18px}.oc-p{justify-content:flex-end}
+.oc-p i,.oc-c i{display:block;height:12px;border-radius:3px;min-width:0}.oc-p i{background:var(--bad);opacity:.75}.oc-c i{background:var(--good);opacity:.75}
+.oc em{font-style:normal;font-size:.72rem;color:var(--mut);white-space:nowrap;font-variant-numeric:tabular-nums}
+.oc-p i,.oc-c i{flex:0 1 auto}.oc-p i{max-width:calc(100% - 44px)}.oc-c i{max-width:calc(100% - 44px)}
+.cot{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 0;font:inherit;color:inherit;cursor:pointer}
+.cot .pc{margin:6px 0 4px}.cot .spark{display:inline-block;vertical-align:middle;margin-top:4px}

@@ -384,6 +384,7 @@ function vStock() {
   <div class="rec ${p.kind}"><div class="t">${esc(p.label)}</div>${p.lines.map(l => `<div class="small">• ${esc(l)}</div>`).join('')}</div>${krNote}${levNote}</div>
   ${lensCompare(w.sym)}
   ${ddCard(w.sym)}
+  ${posCard(w.sym)}
   <div class="card full"><h2>가격 · 200일선 · 과거 신호(●)<div class="chips">${['6M', '1Y', '3Y', '전체'].map(r => `<button class="chip" style="padding:3px 10px;min-height:30px" data-rng="${r}" aria-pressed="${r === range}">${r}</button>`).join('')}</div></h2><canvas id="cv" role="img" aria-label="${esc(w.sym)} 가격 차트"></canvas><div class="small muted" id="cvInfo">차트를 누르면 값이 표시됩니다 · ●는 이 관점의 과거 매수 신호일(1·2·3차)</div></div>`;
   if (sm) h += `<div class="card"><h2>이 종목에서 ${LN[L]} 관점의 과거 성과</h2><dl class="kv"><dt>신호 횟수</dt><dd>${sm.n}회 (${Fx.d[E.START]} ~)</dd><dt>60일 후 상승 확률</dt><dd>${F.p0(sm.h[60].win)} <span class="muted small">(아무 날 ${F.p0(sm.h[60].baseWin)})</span></dd><dt>60일 평균 수익</dt><dd>${F.pct(sm.h[60].mean)} <span class="muted small">(아무 날 ${F.pct(sm.h[60].baseMean)})</span></dd><dt>120일 후 상승 확률</dt><dd>${F.p0(sm.h[120].win)}</dd><dt>신호 후 60일 내 최대 낙폭(중앙값)</dt><dd class="neg">${F.pct(sm.mae)}</dd></dl><p class="small muted">상승 종목 위주의 과거 구간이라 실제보다 좋게 나올 수 있습니다. 전체 검증은 ‘검증’ 탭.</p></div>`;
   if (L !== 'C') h += `<div class="card"><h2>${LN[L]} 신호 체크리스트 ${ring(lt.score, L)}</h2>${rows.map(s => `<div class="sig"><span class="dot ${s.type === 'warn' ? 'warn' : ''} ${s.on ? 'on' : ''}"></span><div><div>${esc(s.label)}</div><div class="small muted">${esc(s.detail)}</div></div><span class="pill ${s.on ? (s.type === 'warn' ? 'bad' : 'good') : 'mut'}">${s.na ? '없음' : s.on ? (s.pts > 0 ? '+' : '') + s.pts : '0'}</span></div>`).join('')}${L === 'C' ? '<p class="small muted">통합 = (디벨롭+도키)/2, 두 관점이 모두 기준 이상이면 +8, 한쪽이 매우 낮으면 -8. 위 목록은 디벨롭 관점 기준.</p>' : ''}</div>`;
@@ -396,7 +397,7 @@ function vStock() {
   <div class="card">
   <h2 style="margin-top:14px">종목 설정</h2><div class="form"><label class="f">레버리지 배율<select id="sLev">${[1, 2, 3].map(x => `<option ${x === w.lev ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="f">시장 베타<input id="sBeta" inputmode="decimal" value="${w.beta ?? 1}"></label><label class="f">유형<select id="sType"><option value="etf" ${w.type === 'etf' ? 'selected' : ''}>ETF</option><option value="stock" ${w.type === 'stock' ? 'selected' : ''}>개별주</option></select></label></div><div class="row" style="margin-top:10px"><button class="btn sm" id="sSave">저장</button><span class="sp"></span><button class="btn sm danger" id="delSym">삭제</button></div></div>`;
   el.innerHTML = h;
-  reorderCards(el, ['세 관점 한눈에', '가격 · 200일선', '고점 대비 하락', '투자지표', '적정주가', '이 종목에서', 'AI 해설', '가격 알림', '거물·내부자', '종목 설정']);
+  reorderCards(el, ['세 관점 한눈에', '가격 · 200일선', '고점 대비 하락', '옵션 포지션', '공매도·기관', '투자자별 순매매', '포지션·수급', '투자지표', '적정주가', '이 종목에서', 'AI 해설', '가격 알림', '거물·내부자', '종목 설정']);
   drawChart(Fx, ev);
 }
 function drawChart(Fx, ev) {
@@ -649,6 +650,7 @@ function vMarket() {
     <p class="small muted" style="margin:8px 0 0">횟수가 적고(월 1회 샘플, 3개월 겹침) 표본이 작아 <b>참고용</b>입니다. 국면별 차이가 뚜렷하지 않으면 국면은 ‘상황 설명’이지 매매 신호가 아닙니다.</p></details>`;
   }
   h += wkCard();
+  h += cotCard() + idxOptCard();
   h += calCard();
   h += `<div class="card"><h2>영역별 점수 <div class="chips">${[['global', '글로벌'], ['us', '미국'], ['kr', '한국']].map(([k, n]) => `<button class="chip" style="padding:3px 10px;min-height:30px" data-mreg="${k}" aria-pressed="${k === mRegion}">${n}</button>`).join('')}</div></h2>
     <div class="tw"><table><thead><tr><th>영역(가중치)</th><th class="n">점수</th><th>평가</th></tr></thead><tbody>${[['liq', '유동성', 30], ['econ', '경기', 25], ['breadth', '시장 내부 건강도', 20], ['credit', '신용·금융 스트레스', 15], ['pos', '투자자 포지셔닝', 10]].map(([d, n, w]) => { const v = cur.dom[d], g = gradeOf(v); return `<tr class="click" data-dt="dom:${mRegion}:${d}"><td>${n} <span class="muted small">${w}% ›</span></td><td class="n">${v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(2)}</td><td>${pill(g[0], g[1])}</td></tr>`; }).join('')}</tbody></table></div>
@@ -667,7 +669,7 @@ function vMarket() {
   h += aiCard('market:all');
   h += `<div class="card"><h2>AI 심층 보고서 만들기 <span class="muted small">선택</span></h2><p class="small" style="margin:0 0 8px">현재 앱 데이터(시장 국면·공포지수·금리 등)를 바탕으로 AI가 시장 보고서를 작성합니다. 서버 AI를 호출하며 비용은 없습니다.</p><div class="row"><button class="btn pri" id="mpGen">앱에서 바로 생성</button></div><div class="small muted" id="mpMsg" style="margin-top:6px">${AI_INFO ? (AI_INFO.gemini ? '서버 AI: <b>Gemini</b> — 무료 키는 구글 검색 연동이 제한되어 <b>앱 데이터 범위 안에서만 믿을 수 있습니다</b>(최신 뉴스·PMI 같은 외부 수치는 틀릴 수 있음).' : '서버 AI: 무료 Cloudflare AI — 웹 검색이 없어 <b>앱 데이터만으로 작성</b>합니다. 최신 뉴스 반영 보고서는 Gemini 키 연결 후 가능합니다.') : ''}</div><div id="mpOut" style="margin-top:10px"></div></div>`;
   el.innerHTML = h;
-  reorderCards(el, ['주말 시장', '장외 시장', 'CNN 공포탐욕', '주요 시장 데이터', '시장 국면 판별', '영역별 점수', '경제 일정', '이 국면, 과거엔', 'AI 해설', 'AI 심층 보고서']);
+  reorderCards(el, ['주말 시장', '장외 시장', 'CNN 공포탐욕', '주요 시장 데이터', '선물 포지션', '지수 옵션', '시장 국면 판별', '영역별 점수', '경제 일정', '이 국면, 과거엔', 'AI 해설', 'AI 심층 보고서']);
 }
 async function buildMarketPrompt() {
   if (!MPROMPT) MPROMPT = await (await fetch('data/market_prompt.md?v=' + Math.floor(Date.now() / 36e5))).text();
@@ -791,6 +793,7 @@ document.addEventListener('click', async e => {
   if ('close' in t.dataset) return closeModal(); if (t.dataset.edith) return holdForm(t.dataset.edith);
   if (t.id === 'fresh' || t.id === 'btnSet') { go('set'); return; } if (t.id === 'btnVerify') { go('verify'); return; }
   if (t.dataset.delsym) return removeWatch(t.dataset.delsym);
+  if (t.dataset.pexp) { const [k, d] = t.dataset.pexp.split('|'); POS_SEL[k] = d; return render(); } if (t.dataset.pcot) { COT_SEL = t.dataset.pcot; return render(); } if (t.dataset.pidx) { IDX_SEL = t.dataset.pidx; return render(); }
   if (t.dataset.mreg) { mRegion = t.dataset.mreg; return render(); }
   if (t.dataset.ai) {   // AI 해설
     const key = t.dataset.ai, box = (t.closest('.card') || t.closest('.sheet')).querySelector('#aiOut'); box.innerHTML = '<p class="muted small">AI가 분석 중입니다… (최대 30초)</p>'; t.disabled = true;
