@@ -1,6 +1,6 @@
 # 디벨롭 (puddle-trader) — Claude Code 작업 지침
 
-두 유튜브 채널(developmong / doki_investing)의 매매 관점을 숫자 규칙으로 만든 **모바일 우선 PWA**. 정적 사이트(GitHub Pages) + 자동 수집(GitHub Actions) + 실시간·AI 프록시(Cloudflare Worker). 서버·DB 없음. 사용자 개인 데이터(보유·현금·기록)는 **기기 안에만** 저장된다.
+추세·가치 매매 관점을 숫자 규칙으로 만든 **모바일 우선 PWA**. **화면·문서에 특정 유튜브 채널명·영상은 넣지 않는다**(2026-11-26 사용자 요청). 탭은 오늘·종목·시장·거물·내 계좌 + ⚙설정(검증 요약 포함). 검증 탭·시장 국면·AI 해설·영상 분석은 삭제됨. 정적 사이트(GitHub Pages) + 자동 수집(GitHub Actions) + 실시간·AI 프록시(Cloudflare Worker). 서버·DB 없음. 사용자 개인 데이터(보유·현금·기록)는 **기기 안에만** 저장된다.
 상세 인수인계 문서는 저장소 밖 `puddle-trader-handoff/` 에 있을 수 있다(없으면 이 파일과 README.md 를 기준으로 한다).
 
 ## 파일 지도
@@ -11,13 +11,12 @@
 | `weekend.js` | 장외·주말 시장 카드(나스닥100·종합 지수 직전 종가). 선물·코인은 표시하지 않음. IG 'Weekend US Tech 100' 은 CFD 라 무료 시세가 없어 외부 링크로만 연결, 점수 미반영 |
 | `positions.js`, `tools/position_collect.py` | 포지션·수급 화면/수집: 옵션 미결제약정(OCC), 선물 롱·숏(CFTC 주간), 공매도(FINRA·Nasdaq), 기관 보유(Nasdaq), 한국 투자자별 순매매(네이버). 하루 1회, 403/429 는 출처별 12시간 휴지(CBOE 는 Cloudflare 차단이라 쓰지 않음). 점수 미반영 |
 | `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF, 점수 신뢰도 곡선, 한국 종목, 국면 과거 검증) |
-| `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ✓검증 ⚙설정), 서비스 워커, 사용 설명서 |
+| `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ⚙설정), 서비스 워커, 사용 설명서 |
 | `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
 | `tools/update_data.py` | 야후 시세·재무 → `data/px/*.json`, `fund.json`, `manifest.json` |
 | `tools/sec_check.py`, `sec_local.py`(+`.bat`) | SEC 는 GitHub 서버 IP 를 막지만 사용자 PC 는 열림 → PC 에서 수집해 `data/tracker` 를 커밋·푸시. `tracker_collect.py` 가 사이트+저장소 데이터를 합쳐 서버 실행이 PC 수집분을 지우지 않는다. 연락처는 사용자 PC 환경변수 `SEC_USER_AGENT` 에만 둔다 |
 | `tools/tracker_collect.py` | SEC Form4·13F·하원 PTR·FMP 의원 거래 → `data/tracker/*.json` |
 | `tools/macro_collect.py`, `calendar_collect.py` | 재무부·FRED 거시, 연준·BLS 공식 일정 |
-| `tools/youtube_update.py`, `build_knowledge.py`, `collect_subs.py` | 채널 새 영상 분석(RSS→자막→Gemini 영상 분석) / 영상 지식 생성 |
 | `tools/privacy_check.py` | 배포 전 이메일·키·경로 검사(실패 시 배포 중단) |
 | `.github/workflows/update-data.yml` | 5분(시세)·30분(거물/일정/거시/영상)·일 1회 전체 수집 후 Pages 배포 |
 | `data/universe.json`, `data/live.json` | 관심종목·시장 심볼 / 공개 워커 주소(비밀 아님) |
@@ -51,4 +50,4 @@ gh workflow run update-data.yml            # 서버 갱신·배포 수동 실행
 - GitHub Pages 배포가 겹치면 "in progress deployment" 로 한 번 실패할 수 있음(재실행).
 
 ## 미해결 과제 (다음 개선 후보)
-SEC 403(IP 제한, 우회 불가) · PMI/기업이익/한국 금통위 일정(무료 공식 데이터 없음) · 앱 종료 상태 푸시 알림(Web Push 서버 필요) · 한국 시장 고유 지표 기반 검증 · `tools/setup_ai_token.ps1` 실행(영상 직접 분석 활성화) 여부 확인.
+SEC 403(IP 제한, 우회 불가) · PMI/기업이익/한국 금통위 일정(무료 공식 데이터 없음) · 앱 종료 상태 푸시 알림(Web Push 서버 필요) · 한국 시장 고유 지표 기반 검증.

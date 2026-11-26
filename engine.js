@@ -1,4 +1,4 @@
-/* 디벨롭 엔진 — 라이브 추천·과거 검증·자동 보정이 "같은 코드"를 쓰도록 공용으로 분리.
+/* 추세 관점 엔진 — 라이브 추천·과거 검증·자동 보정이 "같은 코드"를 쓰도록 공용으로 분리.
    브라우저(window)와 Web Worker(self) 양쪽에서 동작. 모든 지표는 '그날까지의 데이터'만 사용(미래 참조 없음). */
 (function (root) {
   'use strict';
@@ -134,14 +134,14 @@
   };
 
   /* ── 3관점 정의 ──
-     P=디벨롭 매매법(developmong): 시장·기술적 극단에서 분할매수. D=도키(doki_investing): 적정가·저점 위치·과매수 회피.
+     P=추세: 시장·기술적 극단에서 분할매수. D=가치: 적정가·저점 위치·과매수 회피.
      C=통합: 두 관점의 합의. buy/pen 값은 '만점 기준 점수'. */
   E.LENS = {
-    P: { name: '디벨롭', ch: 'developmong', norm: false, buy: { dd: 25, ma200: 15, rsiW: 20, rsiD: 5, macd: 8, ma200w: 10, brk: 6, vix: 12, fear: 8, breadth: 8, inv: 5, season: 3, trend: 6, man_res: 5 }, pen: { over: 15, hi: 8, ext: 10, weak: 15, man_bad: 15 } },
-    D: { name: '도키', ch: 'doki_investing', norm: true, buy: { val: 40, dd: 15, rsiW: 20, ma200w: 10, sup: 10, fear: 5, rsiD: 5, trend: 8, man_res: 5 }, pen: { over: 20, pval: 25, hi: 5, weak: 15, man_bad: 15 } },
-    C: { name: '통합', ch: 'both' }
+    P: { name: '추세', norm: false, buy: { dd: 25, ma200: 15, rsiW: 20, rsiD: 5, macd: 8, ma200w: 10, brk: 6, vix: 12, fear: 8, breadth: 8, inv: 5, season: 3, trend: 6, man_res: 5 }, pen: { over: 15, hi: 8, ext: 10, weak: 15, man_bad: 15 } },
+    D: { name: '가치', norm: true, buy: { val: 40, dd: 15, rsiW: 20, ma200w: 10, sup: 10, fear: 5, rsiD: 5, trend: 8, man_res: 5 }, pen: { over: 20, pval: 25, hi: 5, weak: 15, man_bad: 15 } },
+    C: { name: '통합' }
   };
-  E.LABEL = { dd: '고점 대비 낙폭(하락 깊이)', ma200: '200일선 아래 이격', rsiW: '주봉 RSI 과매도', rsiD: '일봉 RSI 과매도', macd: 'MACD 골든크로스(반등 확인)', ma200w: '200주선 근접(최악 지지선)', brk: '하락 추세 돌파(반등 확인)', vix: 'VIX 공포', fear: '공포지수(자체 계산) 높음', breadth: '시장 폭(섹터 -10%↓ 비율)', inv: 'VIX 기간구조 역전(패닉·강제청산)', season: '계절성(중간선거 4Q~이듬해 상반기)', sup: '200일선 지지 구간(상승 추세 유지)', trend: '상승 추세 유지(가격>200일선·200일선 상승)', val: '적정주가 대비 저평가', man_res: '악재 해소 재료(수동 보정)', over: '주봉 RSI 70↑ 과매수', hi: '신고가 근처(디벨롭 아님)', ext: '200일선 대비 과도한 이격', weak: '구조적 약세 의심(시장 대비 -25%p·고점 -35%)', pval: '적정주가 대비 고평가', man_bad: '악재 미해결(수동 보정)' };
+  E.LABEL = { dd: '고점 대비 낙폭(하락 깊이)', ma200: '200일선 아래 이격', rsiW: '주봉 RSI 과매도', rsiD: '일봉 RSI 과매도', macd: 'MACD 골든크로스(반등 확인)', ma200w: '200주선 근접(최악 지지선)', brk: '하락 추세 돌파(반등 확인)', vix: 'VIX 공포', fear: '공포지수(자체 계산) 높음', breadth: '시장 폭(섹터 -10%↓ 비율)', inv: 'VIX 기간구조 역전(패닉·강제청산)', season: '계절성(중간선거 4Q~이듬해 상반기)', sup: '200일선 지지 구간(상승 추세 유지)', trend: '상승 추세 유지(가격>200일선·200일선 상승)', val: '적정주가 대비 저평가', man_res: '악재 해소 재료(수동 보정)', over: '주봉 RSI 70↑ 과매수', hi: '신고가 근처(추세 관점 아님)', ext: '200일선 대비 과도한 이격', weak: '구조적 약세 의심(시장 대비 -25%p·고점 -35%)', pval: '적정주가 대비 고평가', man_bad: '악재 미해결(수동 보정)' };
   E.DEFAULTS = () => ({ thr: { P: [40, 55, 70], D: [35, 50, 65], C: [45, 60, 75] }, m: { P: {}, D: {} }, trim: true, fearV: 1 });
 
   function lensScore(L, S, i, m) {
@@ -169,14 +169,14 @@
   E.kOf = function (lens, score, thr, F, i) {
     let k = score >= thr[2] ? 3 : score >= thr[1] ? 2 : score >= thr[0] ? 1 : 0, note = '';
     if (F.lev >= 3 && k > 2) { k = 2; note = '3배 레버리지 → 2차까지'; }
-    if (lens === 'D' && F.lev >= 3 && k > 1) { k = 1; note = '도키 관점: 3배 레버리지는 소액·단기만'; }
+    if (lens === 'D' && F.lev >= 3 && k > 1) { k = 1; note = '가치 관점: 3배 레버리지는 소액·단기만'; }
     if (F.S.weak[i] > 0 && k > 1) { k = 1; note = '구조적 약세 의심 → 1차 소액'; }
     if (F.S.man_bad[i] > 0 && k > 1) { k = 1; note = '악재 미해결 → 1차 소액'; }
     if (F.S.pval[i] >= 1 && k > 1) { k = 1; note = '고평가 → 추가 매수 최소화'; }
     return { k, note };
   };
 
-  /* ── 이벤트 연구: 신호가 처음 켜진 날(차수별 1회/디벨롭)의 이후 수익률 ── */
+  /* ── 이벤트 연구: 신호가 처음 켜진 날(차수별 1회/추세 관점)의 이후 수익률 ── */
   E.events = function (F, sc, lens, thr, opt) {
     opt = opt || {}; const out = [], used = new Set(); let last = -99;
     for (let i = START; i < F.n - 2; i++) {

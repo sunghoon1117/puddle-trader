@@ -254,3 +254,5 @@ th{font-size:.8rem}
 .oc-p i,.oc-c i{flex:0 1 auto}.oc-p i{max-width:calc(100% - 44px)}.oc-c i{max-width:calc(100% - 44px)}
 .cot{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 0;font:inherit;color:inherit;cursor:pointer}
 .cot .pc{margin:6px 0 4px}.cot .spark{display:inline-block;vertical-align:middle;margin-top:4px}
+
+.card>.row>.right{margin-left:auto}

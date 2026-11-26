@@ -1,7 +1,7 @@
 {
   "name": "디벨롭",
   "short_name": "디벨롭",
-  "description": "디벨롭 매매법·도키 투자 관점의 매매 기준과 추천",
+  "description": "추세·가치 신호로 보는 매매 기준과 참고 정보",
   "id": "./",
   "start_url": "./index.html",
   "scope": "./",

@@ -4,7 +4,7 @@
 import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEPLOY = ["index.html", "guide.html", "styles.css", "app.js", "detail.js", "weekend.js", "positions.js", "engine.js", "bt-worker.js", "knowledge.js", "sw.js", "manifest.webmanifest", "icon.svg", "data", "worker", "README.md"]
+DEPLOY = ["index.html", "guide.html", "styles.css", "app.js", "detail.js", "weekend.js", "positions.js", "engine.js", "bt-worker.js", "sw.js", "manifest.webmanifest", "icon.svg", "data", "worker", "README.md"]
 BAD_FILES = re.compile(r"(config\.json|\.env|tracker\.db|\.pem|\.key|\.dev\.vars|\.bak)$", re.I)
 PATTERNS = {
     "이메일": re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),

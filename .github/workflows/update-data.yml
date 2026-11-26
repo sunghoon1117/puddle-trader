@@ -7,11 +7,6 @@ on:
     - cron: '7,37 12-23 * * 1-5'    # 시세 + 거물 거래(SEC·13F·의원)
     - cron: '0 6 * * *'             # 하루 한 번 전체 재수집
   workflow_dispatch:
-    inputs:
-      video:
-        description: '(선택) 바로 분석할 유튜브 영상 주소 또는 ID — 휴대폰에서 붙여넣기'
-        required: false
-        default: ''
   push:
     branches: [main]
 permissions:
@@ -66,19 +61,9 @@ jobs:
         env:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: python tools/position_collect.py ${{ github.event_name == 'workflow_dispatch' && '--force' || '' }}
-      - name: 새 영상 자동 분석 (RSS 로 발견 → 자막 분석, 막히면 우회 없이 제목 분석)
-        if: github.event_name != 'schedule' || github.event.schedule != '*/5 13-21 * * 1-5'
-        continue-on-error: true
-        env:
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
-          VIDEO: ${{ github.event.inputs.video }}
-          AI_TOKEN: ${{ secrets.AI_TOKEN }}
-        run: |
-          pip install -q yt-dlp
-          python tools/youtube_update.py
       - name: 앱 버전 파일 생성 (코드가 바뀐 때만 값이 바뀜 → 설치된 앱이 스스로 새로고침)
         run: |
-          V=$(cat index.html app.js detail.js weekend.js positions.js engine.js bt-worker.js knowledge.js styles.css sw.js guide.html manifest.webmanifest | sha256sum | cut -c1-12)
+          V=$(cat index.html app.js detail.js weekend.js positions.js engine.js bt-worker.js styles.css sw.js guide.html manifest.webmanifest | sha256sum | cut -c1-12)
           echo "{\"v\":\"$V\"}" > version.json
       - name: 수집 데이터 JSON 무결성 확인(깨진 파일이 있으면 배포하지 않음)
         run: python tools/validate_data.py
@@ -86,7 +71,7 @@ jobs:
         run: |
           python tools/privacy_check.py
           mkdir -p _site
-          cp -r index.html guide.html styles.css app.js detail.js weekend.js positions.js engine.js bt-worker.js knowledge.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png icon-maskable-512.png data _site/
+          cp -r index.html guide.html styles.css app.js detail.js weekend.js positions.js engine.js bt-worker.js sw.js version.json manifest.webmanifest icon.svg icon-180.png icon-192.png icon-512.png icon-maskable-512.png data _site/
           find _site -name '*.tmp' -delete
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
