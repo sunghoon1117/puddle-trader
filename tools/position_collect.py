@@ -4,6 +4,7 @@
   · 공매도: FINRA 일별 공매도 거래량 파일, Nasdaq 상장 종목은 격주 공매도 잔고
   · 기관 보유 요약: Nasdaq 공개 API(13F 기반)
   · 한국 투자자별 순매매(개인·기관·외국인): 네이버 금융 공개 JSON
+  · 만기별 예상 변동 범위(등가격 콜+풋 가격)·실적 발표일과 과거 반응: Nasdaq 공개 API
  접근을 막으면(403/429) 우회하지 않고 해당 출처만 12시간 쉬며 이전 데이터를 유지한다. 하루 약 1회만 새로 받는다(--force 로 강제).
  환경변수 SITE_URL: 직전 배포본을 이어받아 이력을 보존.
 """
@@ -257,6 +258,106 @@ def kr_trend(sym, prev):
     return [m[k] for k in sorted(m)][-120:]
 
 
+# ───────── 만기별 예상 변동 범위 (Nasdaq 옵션 가격) ─────────
+def mid(bid, ask):
+    b, a = num(bid), num(ask)
+    return (b + a) / 2 if b is not None and a is not None and a > 0 and b >= 0 and a >= b else None
+
+
+def expected_move(sym, cls):
+    """등가격(현재가에 가장 가까운 행사가) 콜+풋 중간값 ≈ 그 만기까지 시장이 값 매긴 변동폭(±). 방향 정보는 없다."""
+    url = (f"https://api.nasdaq.com/api/quote/{sym}/option-chain?assetclass={cls}&limit=5000&fromdate=all&todate=undefined"
+           "&excode=oprac&callput=callput&money=at&type=all")
+    d = json.loads(get(url, "nasdaq", 60)).get("data") or {}
+    head = d.get("lastTrade") or ""
+    m = re.search(r"([0-9][0-9,]*\.?[0-9]*)\s*\(AS OF ([A-Z]{3} [0-9]{1,2}, [0-9]{4})", head)
+    if not m:
+        raise RuntimeError("옵션 가격 자료 없음")
+    spot = num(m.group(1))
+    asof = dt.datetime.strptime(m.group(2).title(), "%b %d, %Y").date()
+    group, chain = None, {}
+    for r in (d.get("table") or {}).get("rows") or []:
+        if r.get("expirygroup"):
+            group = dt.datetime.strptime(r["expirygroup"], "%B %d, %Y").date()
+            continue
+        k, c, p = num(r.get("strike")), mid(r.get("c_Bid"), r.get("c_Ask")), mid(r.get("p_Bid"), r.get("p_Ask"))
+        if group and k and c and p:
+            wide = (num(r.get("c_Ask")) - num(r.get("c_Bid")) + num(r.get("p_Ask")) - num(r.get("p_Bid"))) > 0.3 * (c + p)
+            chain.setdefault(group, []).append((k, c + p, wide))
+    rows = []
+    for e in sorted(chain):
+        if e <= asof:
+            continue
+        k, straddle, wide = min(chain[e], key=lambda x: abs(x[0] - spot))
+        if abs(k / spot - 1) > 0.08:            # 현재가 근처 행사가가 없으면 신뢰할 수 없음
+            continue
+        rows.append([e.isoformat(), k, round(straddle, 2), 1 if wide else 0])
+    if not rows:
+        raise RuntimeError("등가격 호가 없음")
+    return {"asof": asof.isoformat(), "spot": spot, "rows": rows}
+
+
+# ───────── 실적 발표일·과거 반응 ─────────
+def earnings_calendar(syms, today, days=21):
+    """가까운 3주 동안 Nasdaq 실적 일정에 올라온 종목 → {심볼: (날짜, 장전/장후)}"""
+    found = {}
+    d = dt.date.fromisoformat(today)
+    for i in range(days + 1):
+        x = d + dt.timedelta(days=i)
+        if x.weekday() >= 5:
+            continue
+        j = json.loads(get(f"https://api.nasdaq.com/api/calendar/earnings?date={x.isoformat()}", "nasdaq", 30))
+        for r in ((j.get("data") or {}).get("rows")) or []:
+            s = r.get("symbol")
+            if s in syms and s not in found:
+                found[s] = (x.isoformat(), {"time-pre-market": "pre", "time-after-hours": "post"}.get(r.get("time"), ""))
+    return found
+
+
+def estimate_next(dates, today):
+    """다음 발표일 추정: ① 1년 전 같은 분기 발표일 + 52주(요일 유지) ② 없으면 지난 간격의 중앙값"""
+    ds = sorted(dt.date.fromisoformat(x) for x in dates)
+    if len(ds) < 2:
+        return None
+    t = dt.date.fromisoformat(today)
+    yearly = sorted(x + dt.timedelta(days=364) for x in ds if 60 <= (x + dt.timedelta(days=364) - ds[-1]).days <= 125)
+    for c in yearly:
+        if c >= t:
+            return c.isoformat()
+    gaps = sorted((b - a).days for a, b in zip(ds, ds[1:]))
+    gap = gaps[len(gaps) // 2]
+    if not 60 <= gap <= 120:
+        return None
+    c = ds[-1] + dt.timedelta(days=gap)
+    while c < t:
+        c += dt.timedelta(days=gap)
+    while c.weekday() >= 5:
+        c += dt.timedelta(days=1)
+    return c.isoformat()
+
+
+def earnings(sym, cal, today):
+    j = json.loads(get(f"https://api.nasdaq.com/api/company/{sym}/earnings-surprise", "nasdaq", 30))
+    rows = (((j.get("data") or {}).get("earningsSurpriseTable") or {}).get("rows")) or []
+    px = load(os.path.join(DATA, "px", safe(sym) + ".json"), None) or {"d": [], "c": []}
+    past = []
+    for r in rows:
+        m, d, y = r["dateReported"].split("/")
+        day = f"{y}-{int(m):02d}-{int(d):02d}"
+        i = next((k for k in range(len(px["d"]) - 1, -1, -1) if px["d"][k] <= day), None)
+        # 장전·장후 어느 쪽 발표든 포함되도록 '발표 전 거래일 종가 → 발표 다음 거래일 종가'
+        move = px["c"][i + 1] / px["c"][i - 1] - 1 if i and i + 1 < len(px["c"]) else None
+        past.append({"d": day, "eps": num(r.get("eps")), "est": num(r.get("consensusForecast")), "surprise": num(r.get("percentageSurprise")), "move": None if move is None else round(move, 4)})
+    nxt = None
+    if sym in cal:
+        nxt = {"d": cal[sym][0], "time": cal[sym][1], "src": "calendar"}
+    else:
+        est = estimate_next([p["d"] for p in past], today)
+        if est:
+            nxt = {"d": est, "time": "", "src": "estimate"}
+    return {"next": nxt, "past": past}
+
+
 def last_close(sym):
     px = load(os.path.join(DATA, "px", safe(sym) + ".json"), None)
     return px["c"][-1] if px and px.get("c") else None
@@ -296,6 +397,9 @@ def main():
     files.append("shortvol.json")
     days = sorted(shv.get("days", {}))
 
+    stocks = {w["sym"] for w in us if w.get("type") == "stock"}
+    cal = run("실적 일정", lambda: earnings_calendar(stocks, today)) or {}
+    upcoming = []
     for w in us:
         s = w["sym"]
         rel = f"pos/{safe(s)}.json"
@@ -309,6 +413,14 @@ def main():
         ins = run(f"{s} 기관 보유", lambda: institutional(s)) if w.get("type") == "stock" else None
         if ins:
             cur["inst"] = ins
+        em = run(f"{s} 예상 범위", lambda: expected_move(s, "stocks" if w.get("type") == "stock" else "etf"))
+        if em:
+            cur["em"] = em
+        er = run(f"{s} 실적", lambda: earnings(s, cal, today)) if w.get("type") == "stock" else None
+        if er:
+            cur["earn"] = er
+        if cur.get("earn", {}).get("next"):
+            upcoming.append({"s": s, **cur["earn"]["next"]})
         cur["shortVol"] = [[f"{d[:4]}-{d[4:6]}-{d[6:]}"] + shv["days"][d][s] for d in days if s in shv["days"][d]]
         cur["s"], cur["t"] = s, int(time.time())
         dump(rel, cur)
@@ -325,6 +437,12 @@ def main():
         if o:
             o["approxSpot"] = s != "VIX"
             cur["opt"] = o
+        if s in ("NDX", "SPX"):   # SPX 옵션 가격은 이 출처에 없어 SPY(ETF)의 비율로 대신한다
+            em = run(f"{s} 예상 범위", lambda: expected_move("NDX", "index") if s == "NDX" else expected_move("SPY", "etf"))
+            if em:
+                if s == "SPX":
+                    em["proxy"] = "SPY"
+                cur["em"] = em
         cur["s"], cur["t"] = s, int(time.time())
         dump(rel, cur)
         files.append(f"IDX_{s}.json")
@@ -339,6 +457,9 @@ def main():
         cur["s"], cur["t"] = s, int(time.time())
         dump(rel, cur)
         files.append(f"{safe(s)}.json")
+
+    dump("pos/earnings.json", {"t": int(time.time()), "items": sorted(upcoming, key=lambda x: x["d"])})
+    files.append("earnings.json")
 
     cot_prev = site_or_local("pos/cot.json", {"t": 0, "markets": {}})
     c = run("선물 포지션(CFTC)", cot_fetch)

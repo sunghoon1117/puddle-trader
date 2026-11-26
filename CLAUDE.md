@@ -9,7 +9,7 @@
 | `engine.js` | **공용 엔진**: 지표·신호·3관점 점수·차수·이벤트연구·시뮬레이션·자동 보정·시장 국면(`E.regime`). 브라우저와 Web Worker 양쪽에서 실행. 라이브 추천과 백테스트가 같은 코드를 쓴다 |
 | `detail.js` | 카드 재배치·접기 도우미(`reorderCards`, `collapseCard`), 지표 클릭 상세 시트(`data-dt` 키: px/mac/fear/cnn/val/ind/dom), 종목 탭의 3관점 비교·투자지표(PER 등) 카드, 종목 검색 추가. `app.js` 보다 먼저 로드 |
 | `weekend.js` | 장외·주말 시장 카드(나스닥100·종합 지수 직전 종가). 선물·코인은 표시하지 않음. IG 'Weekend US Tech 100' 은 CFD 라 무료 시세가 없어 외부 링크로만 연결, 점수 미반영 |
-| `positions.js`, `tools/position_collect.py` | 포지션·수급 화면/수집: 옵션 미결제약정(OCC), 선물 롱·숏(CFTC 주간), 공매도(FINRA·Nasdaq), 기관 보유(Nasdaq), 한국 투자자별 순매매(네이버). 하루 1회, 403/429 는 출처별 12시간 휴지(CBOE 는 Cloudflare 차단이라 쓰지 않음). 점수 미반영 |
+| `positions.js`, `tools/position_collect.py` | 포지션·수급 화면/수집: 옵션 미결제약정(OCC), 선물 롱·숏(CFTC 주간), 공매도(FINRA·Nasdaq), 기관 보유(Nasdaq), 한국 투자자별 순매매(네이버), 만기별 예상 범위(Nasdaq 등가격 콜+풋; SPX 는 SPY 대용, VIX 없음)·실적 발표일(일정 3주 조회, 없으면 간격 추정)과 과거 반응. 하루 1회, 403/429 는 출처별 12시간 휴지(CBOE 는 Cloudflare 차단이라 쓰지 않음). 점수 미반영 |
 | `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF, 점수 신뢰도 곡선, 한국 종목, 국면 과거 검증) |
 | `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ⚙설정), 서비스 워커, 사용 설명서 |
 | `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |

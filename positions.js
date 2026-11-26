@@ -45,12 +45,57 @@ function optBlock(key, o, opts) {
   return h;
 }
 
+/* ───────── 만기별 예상 범위 · 실적 발표 ───────── */
+const dLabel = d => d.slice(2).replace(/-/g, '.');
+function coneChart(em, mark) {
+  const rows = em.rows.filter(r => daysLeft(r[0]) <= 400 && r[0] >= new Date().toISOString().slice(0, 10)); if (rows.length < 2) return '';
+  const W = 320, H = 170, pl = 4, pr = 46, pt = 8, pb = 20, spot = em.spot, T = Math.max(daysLeft(rows.at(-1)[0]), 1);
+  const mx = maxOf(rows.map(r => r[2])), hi = spot + mx, lo = Math.max(0, spot - mx), X = t => pl + Math.sqrt(t / T) * (W - pl - pr), Y = v => pt + (1 - (v - lo) / (hi - lo || 1)) * (H - pt - pb);
+  const up = rows.map(r => X(daysLeft(r[0])).toFixed(1) + ',' + Y(spot + r[2]).toFixed(1)), dn = rows.map(r => X(daysLeft(r[0])).toFixed(1) + ',' + Y(Math.max(0, spot - r[2])).toFixed(1)).reverse();
+  const num = v => v.toLocaleString('en-US', { maximumFractionDigits: v >= 100 ? 0 : 1 }), mt = mark ? daysLeft(mark) : null;
+  const ticks = [rows[0], rows[Math.floor(rows.length / 2)], rows.at(-1)].filter((r, i, a) => a.indexOf(r) === i);
+  return `<svg class="cone" viewBox="0 0 ${W} ${H}" role="img" aria-label="만기일별 예상 가격 범위"><polygon points="${X(0).toFixed(1)},${Y(spot).toFixed(1)} ${up.join(' ')} ${dn.join(' ')}" fill="var(--infobg)" stroke="var(--info)" stroke-width="1.2"/><line x1="${pl}" x2="${W - pr}" y1="${Y(spot)}" y2="${Y(spot)}" stroke="var(--mut)" stroke-dasharray="3 3"/>${mt != null && mt <= T ? `<line x1="${X(mt)}" x2="${X(mt)}" y1="${pt}" y2="${H - pb}" stroke="var(--warn)" stroke-width="1.5"/><text x="${Math.min(X(mt) + 3, W - pr - 24)}" y="${pt + 10}" class="ct w">실적</text>` : ''}<text x="${W - pr + 4}" y="${Y(hi) + 9}" class="ct">${num(hi)}</text><text x="${W - pr + 4}" y="${Y(spot) + 4}" class="ct">${num(spot)}</text><text x="${W - pr + 4}" y="${Y(lo)}" class="ct">${num(lo)}</text>${ticks.map((r, i) => `<text x="${X(daysLeft(r[0]))}" y="${H - 5}" text-anchor="${i === 0 ? 'start' : 'middle'}" class="ct">${r[0].slice(5).replace('-', '/')}</text>`).join('')}</svg>`;
+}
+const emRange = (spot, r) => { const f = v => v.toLocaleString('en-US', { maximumFractionDigits: spot >= 1000 ? 0 : 1 }); return f(Math.max(0, spot - r[2])) + ' ~ ' + f(spot + r[2]); };
+function emBlock(em, earnDate) {
+  const today = new Date().toISOString().slice(0, 10), rows = (em.rows || []).filter(r => r[0] >= today); if (!rows.length) return '<p class="muted small">남은 만기 자료가 없습니다.</p>';
+  const spot = em.spot, tr = r => `<tr><td>${dLabel(r[0])}<div class="small muted">${daysLeft(r[0])}일${r[3] ? ' · 호가 넓음' : ''}</div></td><td class="n">±${(r[2] / spot * 100).toFixed(1)}%</td><td class="n">${emRange(spot, r)}</td></tr>`, head = '<thead><tr><th>만기일</th><th class="n">예상 폭</th><th class="n">범위</th></tr></thead>';
+  return `<p class="small muted" style="margin:0 0 6px">기준 가격 <b>${spot.toLocaleString('en-US', { maximumFractionDigits: 2 })}</b> (${esc(em.asof)} 호가)${em.proxy ? ' · ' + esc(em.proxy) + ' ETF 기준' : ''}</p>${coneChart(em, earnDate)}<div class="tw"><table>${head}<tbody>${rows.slice(0, 6).map(tr).join('')}</tbody></table></div>${rows.length > 6 ? `<details style="margin-top:6px"><summary class="small b" style="cursor:pointer">먼 만기 ${rows.length - 6}개 더 보기</summary><div class="tw"><table>${head}<tbody>${rows.slice(6).map(tr).join('')}</tbody></table></div></details>` : ''}<p class="small muted" style="margin:8px 0 0">등가격 콜+풋 가격으로 계산한 <b>시장이 값 매긴 변동폭</b>입니다. 방향이나 목표가가 아니며, 이 범위 안에서 끝날 가능성은 대략 55~60%(1.25배 범위는 약 68%)인 근사치라 벗어나는 일이 흔합니다. 자료: Nasdaq 옵션 호가.</p>`;
+}
+function earnMove(em, date, time) {
+  if (!em || !date) return null; const rows = em.rows || [], inc = r => (time === 'pre' ? r[0] >= date : r[0] > date);
+  const after = rows.find(inc); if (!after || daysLeft(after[0]) - daysLeft(date) > 45) return null;
+  const before = [...rows].reverse().find(r => !inc(r) && r[0] >= em.asof), o = { after, pct: after[2] / em.spot, event: null };
+  if (before) { const tA = Math.max(1, Math.round((Date.parse(after[0]) - Date.parse(em.asof)) / 864e5)), tB = Math.round((Date.parse(before[0]) - Date.parse(em.asof)) / 864e5); if (tB >= 3 && tA - tB <= 21) { const v = after[2] ** 2 - before[2] ** 2 * (tA / tB); if (v > 0) o.event = Math.sqrt(v) / em.spot; } }
+  return o;
+}
+function earnCard(sym, d) {
+  const e = d.earn; if (!e) return ''; const px = PX[sym], react = p => { if (!px) return p.move; let i = -1; for (let k = px.d.length - 1; k >= 0; k--) if (px.d[k] <= p.d) { i = k; break; } return i > 0 && i + 1 < px.c.length ? px.c[i + 1] / px.c[i - 1] - 1 : p.move; }; const n = e.next, past = (e.past || []).filter(p => p.d).map(p => ({ ...p, move: react(p) })), moves = past.map(p => p.move).filter(v => v != null), avg = moves.length ? moves.reduce((a, v) => a + Math.abs(v), 0) / moves.length : null;
+  const mv = n ? earnMove(d.em, n.d, n.time) : null, when = n ? { pre: '장 시작 전', post: '장 마감 후' }[n.time] || '' : '';
+  let h = `<div class="card"><h2>실적 발표 <span class="muted small">다음 일정 · 예상 등락 범위 · 참고</span></h2>`;
+  if (n) h += `<div class="row" style="align-items:baseline"><b style="font-size:1.3rem">${esc(n.d)}</b><span>${daysLeft(n.d) === 0 ? '오늘' : daysLeft(n.d) + '일 남음'}</span>${pill(n.src === 'calendar' ? '일정 등록' : '추정일', n.src === 'calendar' ? 'good' : 'warn')}${when ? pill(when, 'mut') : ''}</div>${n.src !== 'calendar' ? '<p class="small muted" style="margin:4px 0 0">일정표에 아직 올라오지 않아 지난해 같은 분기 발표일을 기준으로 추정한 날짜입니다. 실제와 며칠~몇 주 다를 수 있습니다.</p>' : ''}`;
+  else h += '<p class="muted small" style="margin:0">다음 발표일을 알 수 없습니다.</p>';
+  if (mv) h += `<dl class="kv" style="margin-top:10px"><dt>실적일이 들어간 첫 만기(${dLabel(mv.after[0])})까지 예상 폭</dt><dd>±${(mv.pct * 100).toFixed(1)}%</dd><dt>그 범위</dt><dd>${emRange(d.em.spot, mv.after)}</dd>${mv.event != null ? `<dt>그중 실적 발표분 추정</dt><dd><b>±${(mv.event * 100).toFixed(1)}%</b></dd>` : ''}</dl><p class="small muted" style="margin:4px 0 0">만기까지의 폭에는 발표 전 평범한 날들의 움직임도 포함됩니다.${mv.event != null ? ' 발표분은 앞뒤 만기 가격 차이로 나눈 추정치입니다.' : ''}</p>`;
+  else if (n) h += '<p class="small muted" style="margin:8px 0 0">발표일에 가까운 옵션 만기가 아직 없어 예상 폭을 따로 계산하지 못했습니다.</p>';
+  if (past.length) h += `<h3>지난 발표 때 실제 움직임 <span class="muted small">발표 전날→다음날 종가${avg != null ? ' · 평균 ±' + (avg * 100).toFixed(1) + '%' : ''}</span></h3><div class="tw"><table><thead><tr><th>발표일</th><th class="n">주가</th><th class="n">EPS</th><th class="n">예상 대비</th></tr></thead><tbody>${past.map(p => `<tr><td>${dLabel(p.d)}</td><td class="n ${cls(p.move)}">${F.pct(p.move)}</td><td class="n">${p.eps != null ? p.eps.toFixed(2) : '–'}</td><td class="n ${cls(p.surprise)}">${p.surprise != null ? (p.surprise > 0 ? '+' : '') + p.surprise.toFixed(1) + '%' : '–'}</td></tr>`).join('')}</tbody></table></div>`;
+  return h + '<p class="small muted" style="margin:8px 0 0">과거 반응과 옵션 가격은 다음 발표 결과를 알려 주지 않습니다. 점수에는 반영하지 않습니다.</p></div>';
+}
+function earnList(days) {   // 관심종목의 다가오는 실적 발표
+  const d = POS.earnings; loadPos('earnings'); const today = new Date().toISOString().slice(0, 10), mine = new Set(watchSyms());
+  return ((d && d.items) || []).filter(x => x.d >= today && mine.has(x.s) && (days == null || daysLeft(x.d) <= days));
+}
+function earnScheduleCard(days) {
+  const list = earnList(days); if (!list.length) return days == null ? `<div class="card"><h2>실적 발표 예정</h2><p class="muted small" style="margin:0">${POS.earnings ? '예정된 발표 자료가 없습니다.' : '불러오는 중…'}</p></div>` : '';
+  return `<div class="card"><h2>${days == null ? '실적 발표 예정' : '곧 실적 발표'} <span class="muted small">미국 개별주 · 눌러서 종목 보기</span></h2>${list.map(x => `<button class="act" style="grid-template-columns:1fr auto;padding:10px 12px;margin-bottom:6px" data-go="${esc(x.s)}"><div><b>${esc(x.s)}</b> <span class="small muted">${esc(x.d)}${x.time === 'pre' ? ' · 장전' : x.time === 'post' ? ' · 장후' : ''}</span></div><div class="row">${pill(x.src === 'calendar' ? '일정 등록' : '추정', x.src === 'calendar' ? 'good' : 'warn')}<b>D-${daysLeft(x.d)}</b></div></button>`).join('')}</div>`;
+}
+
 /* ───────── 종목 탭 카드 ───────── */
 function posCard(sym) {
   const name = posFile(sym), d = POS[name]; loadPos(name);
   if (!d) return `<div class="card"><h2>포지션·수급 <span class="muted small">불러오는 중</span></h2><p class="muted small">자료를 불러오는 중입니다…</p></div>`;
   if (d.missing) return `<div class="card"><h2>포지션·수급 <span class="muted small">자료 없음</span></h2><p class="muted small" style="margin:0">이 종목은 수집 목록(data/universe.json) 밖이거나 아직 수집 전입니다. 목록 밖 종목은 자료를 받지 않습니다.</p></div>`;
-  return isKR(sym) ? krCard(sym, d) : (d.opt ? `<div class="card"><h2>옵션 포지션 <span class="muted small">행사가·만기별 미결제약정 · 참고</span></h2>${staleNote(d.t)}${optBlock('s:' + sym, d.opt)}</div>` : '') + flowCard(sym, d);
+  const range = !isKR(sym) && d.em ? `<div class="card"><h2>만기별 예상 범위 <span class="muted small">옵션 가격 기준 · 참고</span></h2>${staleNote(d.t)}${emBlock(d.em, d.earn && d.earn.next ? d.earn.next.d : null)}</div>` : '';
+  return isKR(sym) ? krCard(sym, d) : earnCard(sym, d) + range + (d.opt ? `<div class="card"><h2>옵션 포지션 <span class="muted small">행사가·만기별 미결제약정 · 참고</span></h2>${staleNote(d.t)}${optBlock('s:' + sym, d.opt)}</div>` : '') + flowCard(sym, d);
 }
 function flowCard(sym, d) {
   const sv = (d.shortVol || []).filter(r => r[2] > 0), si = d.shortInt || [], ins = d.inst; if (!sv.length && !si.length && !ins) return '';
@@ -95,5 +140,6 @@ function cotCard() {
 function idxOptCard() {
   const name = 'IDX_' + IDX_SEL, d = POS[name]; loadPos(name);
   const body = !d ? '<p class="muted small">불러오는 중…</p>' : (d.opt ? optBlock('i:' + IDX_SEL, d.opt, { wide: IDX_SEL === 'VIX' }) : '<p class="muted small">자료가 아직 없습니다.</p>');
-  return `<div class="card"><h2>지수 옵션 포지션 <span class="muted small">S&P500 · 나스닥100 · VIX</span></h2><div class="chips" style="margin-bottom:8px">${[['SPX', 'S&P500'], ['NDX', '나스닥100'], ['VIX', 'VIX']].map(([k, n]) => `<button class="chip" data-pidx="${k}" aria-pressed="${k === IDX_SEL}">${n}</button>`).join('')}</div>${d && d.opt ? staleNote(d.t) : ''}${body}</div>`;
+  const rng = d && d.em ? `<details style="margin-top:10px"><summary class="b" style="cursor:pointer">만기별 예상 범위 보기</summary><div style="margin-top:8px">${emBlock(d.em)}</div></details>` : '';
+  return `<div class="card"><h2>지수 옵션 포지션 <span class="muted small">S&P500 · 나스닥100 · VIX</span></h2><div class="chips" style="margin-bottom:8px">${[['SPX', 'S&P500'], ['NDX', '나스닥100'], ['VIX', 'VIX']].map(([k, n]) => `<button class="chip" data-pidx="${k}" aria-pressed="${k === IDX_SEL}">${n}</button>`).join('')}</div>${d && d.opt ? staleNote(d.t) : ''}${body}${rng}</div>`;
 }

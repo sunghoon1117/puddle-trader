@@ -308,6 +308,7 @@ function vToday() {
   const [mHead, mSub] = mood[0].split(' — '), dtk = cn ? 'cnn' : 'fear';
   let h = `<div class="hero ${mood[1]}"><button class="hero-main" data-dt="${dtk}"><span class="l">시장 온도 ›</span><b class="verdict">${esc(mHead)}</b>${mSub ? `<span class="sub">${esc(mSub)}</span>` : ''}</button><div class="hero-stats"><button data-dt="${dtk}"><span class="l">${cn ? '공포탐욕' : '공포지수'}</span><b>${cn ? cn.score.toFixed(0) : F.n1(m?.fear)}</b><span class="sub">${cn ? esc(CNN_KO[cn.rating] || cn.rating) + ' · CNN' : '자체 계산'}</span></button><button data-dt="px:^VIX"><span class="l">VIX</span><b>${F.n1(m?.vix)}</b><span class="sub">${m?.inv ? (m.inv >= 1 ? '기간구조 역전' : '기간구조 정상') : '–'}</span></button><button data-dt="qdd"><span class="l">QQQ 낙폭</span><b>${F.pct(m?.qdd, 0)}</b><span class="sub">약세 섹터 ${F.p0(m?.breadth)}</span></button></div></div>`;
   if (!marketOpen()) h += wkCard();
+  h += earnScheduleCard(7);
   const lv = x => x.lv.lens[L], buys = items.filter(x => lv(x).k > 0 && !lv(x).over && lv(x).fresh).sort((a, b) => lv(b).score - lv(a).score), trims = items.filter(x => lv(x).over), watch = items.filter(x => !lv(x).over && !(lv(x).k > 0 && lv(x).fresh) && (lv(x).k > 0 || lv(x).score >= 25)).sort((a, b) => lv(b).score - lv(a).score).slice(0, 6);
   const card = x => { const p = planFor(x.w.sym, L), l = x.lv.lens[L]; return `<button class="act ${p.kind}" data-go="${esc(x.w.sym)}">${ring(l.score, L)}<div><div class="row"><span class="t">${esc(dispName(x.w))}</span>${x.w.lev > 1 ? pill(x.w.lev + 'x', 'warn') : ''}${isKR(x.w.sym) ? pill('미국 지표 기준', 'mut') : ''}${actPill(l, p)}<span class="sp"></span><span class="b">${fmtPx(x.w.sym, x.lv.price)}</span></div><div class="s">${esc(p.label)}${p.amount ? ' · ' + fmtAmt(x.w.sym, p.amount) + ' (' + p.shares + '주)' : ''}</div></div></button>`; };
   h += `<div class="card full" style="margin-top:12px"><h2>오늘의 신호</h2>`;
@@ -356,7 +357,7 @@ function vStock() {
   <details class="card">
   <summary class="b sumh">종목 설정</summary><div class="form"><label class="f">레버리지 배율<select id="sLev">${[1, 2, 3].map(x => `<option ${x === w.lev ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="f">시장 베타<input id="sBeta" inputmode="decimal" value="${w.beta ?? 1}"></label><label class="f">유형<select id="sType"><option value="etf" ${w.type === 'etf' ? 'selected' : ''}>ETF</option><option value="stock" ${w.type === 'stock' ? 'selected' : ''}>개별주</option></select></label></div><div class="row" style="margin-top:10px"><button class="btn sm" id="sSave">저장</button><span class="sp"></span><button class="btn sm danger" id="delSym">삭제</button></div></details>`;
   el.innerHTML = h;
-  reorderCards(el, ['신호 근거', '가격 · 200일선', '고점 대비 하락', '옵션 포지션', '공매도·기관', '투자자별 순매매', '포지션·수급', '투자지표', '이 종목의 과거', '가격 알림', '거물·내부자', '종목 설정']);
+  reorderCards(el, ['신호 근거', '가격 · 200일선', '고점 대비 하락', '실적 발표', '만기별 예상 범위', '옵션 포지션', '공매도·기관', '투자자별 순매매', '포지션·수급', '투자지표', '이 종목의 과거', '가격 알림', '거물·내부자', '종목 설정']);
   drawChart(Fx, ev);
 }
 function drawChart(Fx, ev) {
@@ -558,7 +559,7 @@ function vMarket() {
   h += `</div>`;
   h += `<div class="card full"><h2>주요 시장 데이터 <span class="muted small">Yahoo Finance(지연 가능) · 눌러서 추이</span></h2><div class="tw"><table><thead><tr><th>지표</th><th class="n">현재</th><th class="n">1일</th><th class="n">1개월</th><th class="n">3개월</th></tr></thead><tbody>${mktTable().map(([nm, s, v]) => v ? `<tr class="click" data-dt="px:${esc(s)}"><td>${esc(nm)} <span class="muted small">›</span></td><td class="n">${v.last >= 1000 ? v.last.toLocaleString('en-US', { maximumFractionDigits: 0 }) : v.last.toFixed(2)}</td>${[v.d1, v.m1, v.m3].map(x => `<td class="n ${cls(x)}">${v.y ? (x >= 0 ? '+' : '') + x.toFixed(2) + '%p' : F.pct(x)}</td>`).join('')}</tr>` : '').join('')}${macroRows()}</tbody></table></div></div>`;
   h += cotCard() + idxOptCard();
-  h += calCard();
+  h += earnScheduleCard() + calCard();
   el.innerHTML = h;
 }
 

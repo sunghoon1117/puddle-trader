@@ -256,3 +256,5 @@ th{font-size:.8rem}
 .cot .pc{margin:6px 0 4px}.cot .spark{display:inline-block;vertical-align:middle;margin-top:4px}
 
 .card>.row>.right{margin-left:auto}
+
+.cone{display:block;width:100%;height:auto;margin:4px 0 8px}.cone .ct{font-size:10px;fill:var(--mut)}.cone .ct.w{fill:var(--warn);font-weight:700}
