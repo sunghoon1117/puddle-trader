@@ -123,7 +123,7 @@ async function refresh(manual) {
     const f0 = freshness(), needLive = manual || !st.ok || f0.k !== 'ok' || watchSyms().some(s => !PX[s]);
     if (needLive) {
       if (manual && localApi()) await fetch('/api/refresh').catch(() => { });   // PC 서버 사용 시 즉시 갱신 요청
-      const miss = watchSyms().filter(s => !PX[s]), r = await syncLive(manual || !st.ok ? undefined : [...new Set([...miss, 'SPY', 'QQQ', '^VIX'])]);
+      const miss = watchSyms().filter(s => !PX[s]), r = await syncLive(manual || !st.ok ? undefined : [...new Set([...miss, 'SPY', 'QQQ', '^VIX', 'KRW=X'])]);
       if (manual && /^https?:/.test(location.protocol)) { await new Promise(r => setTimeout(r, 1500)); st = await syncStatic(); }
       if (r.fails.length && r.n === 0 && !st.ok) msg = '⚠ 시세 서버에 연결하지 못했습니다. 저장된 마지막 정상 데이터로 표시 중이며, 연결되면 자동으로 따라잡습니다.';
       else if (r.fails.length) msg = `일부 종목(${r.fails.slice(0, 5).join(', ')}) 갱신 실패 — 마지막 정상값 사용`;
@@ -156,7 +156,7 @@ async function liveTick() {
   if (document.hidden || !S.settings.auto || !(marketOpen() || krOpen()) || busy || liveBusy) return;
   const bases = []; if (proxyBase()) bases.push(proxyBase()); if (localApi()) bases.push('');
   if (!bases.length) return; liveBusy = true;
-  const syms = [...new Set([...watchSyms(), 'SPY', 'QQQ', '^VIX', '^VIX3M'])].slice(0, 30);
+  const syms = [...new Set(['KRW=X', 'DX-Y.NYB', 'SPY', 'QQQ', '^VIX', '^VIX3M', ...watchSyms()])].slice(0, 30);
   try {
     for (const b of bases) {
       try {
@@ -305,6 +305,17 @@ const actPill = (x, p) => p.kind === 'buy' ? pill(x.k + '차 신호', 'good') : 
 function renderFresh() { const f = freshness(), b = $('#fresh'); b.className = 'fresh ' + f.k; b.innerHTML = `<i></i><span>${esc(f.t)}</span>`; b.title = f.d; }
 
 /* ───────── 오늘 ───────── */
+// 환율 카드(참고): 오름·내림에 좋고 나쁨이 없어 색을 칠하지 않는다
+function fxCard() {
+  const rows = [['KRW=X', '원/달러 환율', '오르면 원화 약세', '원'], ['DX-Y.NYB', '달러인덱스(DXY)', '오르면 달러 강세', '']].map(([s, nm, note, unit]) => {
+    const a = PX[s]; if (!a || a.c.length < 25) return '';
+    const c = a.c, last = c.at(-1), day = last - c.at(-2), cut = new Date(Date.parse(a.d.at(-1)) - 30 * 864e5).toISOString().slice(0, 10);
+    let i = a.d.length - 1; while (i > 0 && a.d[i] > cut) i--;
+    const f = v => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), sg = v => v >= 0 ? '+' : '';
+    return `<button class="wkrow" data-dt="px:${esc(s)}"><div class="wkn"><b>${nm}</b><span class="small muted">${esc(a.d.at(-1).slice(5).replace('-', '/'))} 기준 · ${note}</span></div>${wkSpark(c.slice(-22), true, true)}<div class="wkv"><b>${f(last)}${unit}</b><span class="small">${sg(day)}${f(day)}${unit} <span class="muted">전일 대비</span></span><span class="small">${F.pct(last / c[i] - 1)} <span class="muted">1개월</span></span></div></button>`;
+  }).join('');
+  return rows ? `<div class="card"><h2>환율 <span class="muted small">참고 · 눌러서 추이</span></h2>${rows}</div>` : '';
+}
 function marketNow() {
   if (!MK) return null; const i = MK.n - 1, q = PX.QQQ, o = { vix: MK.vix[i], fear: MK.fear[i], breadth: MK.breadth[i], inv: MK.vix[i] && MK.v3[i] ? MK.vix[i] / MK.v3[i] : null };
   if (q && q.c.length > 252) o.qdd = q.c.at(-1) / maxOf(q.c.slice(-252)) - 1; return o;
@@ -315,6 +326,7 @@ function vToday() {
   const mood = !m ? ['데이터 대기', ''] : fearV >= 75 ? ['극단적 공포 — 시장 심리 지표일 뿐 바닥 신호가 아닙니다', 'bad'] : fearV >= 55 ? ['공포 — 조정 진행', 'warn'] : fearV <= 25 ? ['극단적 탐욕 — 과열 주의', 'warn'] : fearV <= 45 ? ['탐욕 우세', 'good'] : ['중립', 'good'];
   const [mHead, mSub] = mood[0].split(' — '), dtk = cn ? 'cnn' : 'fear';
   let h = `<div class="hero ${mood[1]}"><button class="hero-main" data-dt="${dtk}"><span class="l">시장 온도 ›</span><b class="verdict">${esc(mHead)}</b>${mSub ? `<span class="sub">${esc(mSub)}</span>` : ''}</button><div class="hero-stats"><button data-dt="${dtk}"><span class="l">${cn ? '공포탐욕' : '공포지수'}</span><b>${cn ? cn.score.toFixed(0) : F.n1(m?.fear)}</b><span class="sub">${cn ? esc(CNN_KO[cn.rating] || cn.rating) + ' · CNN' : '자체 계산'}</span></button><button data-dt="px:^VIX"><span class="l">VIX</span><b>${F.n1(m?.vix)}</b><span class="sub">${m?.inv ? (m.inv >= 1 ? '기간구조 역전' : '기간구조 정상') : '–'}</span></button><button data-dt="qdd"><span class="l">QQQ 낙폭</span><b>${F.pct(m?.qdd, 0)}</b><span class="sub">약세 섹터 ${F.p0(m?.breadth)}</span></button></div></div>`;
+  h += fxCard();
   if (!marketOpen()) h += wkCard();
   h += earnScheduleCard(7);
   const lv = x => x.lv.lens[L], buys = items.filter(x => lv(x).k > 0 && !lv(x).over && lv(x).fresh).sort((a, b) => lv(b).score - lv(a).score), trims = items.filter(x => lv(x).over), watch = items.filter(x => !lv(x).over && !(lv(x).k > 0 && lv(x).fresh) && (lv(x).k > 0 || lv(x).score >= 25)).sort((a, b) => lv(b).score - lv(a).score).slice(0, 6);
