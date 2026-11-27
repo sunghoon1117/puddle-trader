@@ -309,8 +309,8 @@
     const det = {
       dd: `52주 고점 대비 ${pc(B.dd[i])}` + (F.lev > 1 ? ` (기초지수 환산 ${pc(B.dd[i] / F.lev)})` : ''), ma200: `200일선 대비 ${pc(B.dev200[i])}`, rsiW: `주봉 RSI ${f(B.rW[i])}`, rsiD: `일봉 RSI ${f(B.rD[i])}`,
       macd: '최근 10거래일 내 골든크로스', ma200w: isFinite(B.ma200w[i]) ? `200주선 ${f(B.ma200w[i], 2)}` : '데이터 부족', brk: '15일 고점 상향 돌파', vix: `VIX ${f(B.vix[i])}`, fear: `자체 공포지수 ${f(B.fear[i], 0)}/100`, breadth: `섹터 중 -10%↓ ${isFinite(B.breadth[i]) ? (B.breadth[i] * 100).toFixed(0) + '%' : '–'}`, inv: `VIX/VIX3M ${f(B.inv[i], 2)}`,
-      season: '중간선거 해 4분기 ~ 이듬해 상반기', sup: '200일선 상승 중 & -5%~+3% 구간', trend: '가격이 200일선 위 · 200일선 상승 중', val: isFinite(B.fair[i]) ? `적정가 ${f(B.fair[i], 2)} · 현재가/적정가 ${(F.c[i] / B.fair[i] * 100).toFixed(0)}%` : '적정가 없음(자동/수동 입력)',
-      over: `주봉 RSI ${f(B.rW[i])}`, hi: `고점 대비 ${pc(B.dd[i])}`, ext: `200일선 이격 ${pc(B.dev200[i])}`, weak: '시장 대비 60일 -25%p 이하 & 고점 -35%↓', pval: '현재가가 적정가의 120%↑', man_res: '종목 화면에서 수동 체크', man_bad: '종목 화면에서 수동 체크'
+      season: '중간선거 해 4분기 ~ 이듬해 상반기', sup: '200일선 상승 중 & -5%~+3% 구간', trend: '가격이 200일선 위 · 200일선 상승 중', val: isFinite(B.fair[i]) ? `적정가 ${f(B.fair[i], 2)} · 현재가/적정가 ${(F.c[i] / B.fair[i] * 100).toFixed(0)}%` : '적정가 없음',
+      over: `주봉 RSI ${f(B.rW[i])}`, hi: `고점 대비 ${pc(B.dd[i])}`, ext: `200일선 이격 ${pc(B.dev200[i])}`, weak: '시장 대비 60일 -25%p 이하 & 고점 -35%↓', pval: '현재가가 적정가의 120%↑', man_res: '백업에 남은 수동 표시', man_bad: '백업에 남은 수동 표시'
     };
     const L = E.LENS[lensKey === 'C' ? 'P' : lensKey], m = params.m[lensKey === 'C' ? 'P' : lensKey] || {}, rows = [];
     for (const [grp, type] of [['buy', 'buy'], ['pen', 'warn']]) for (const id in L[grp]) {
@@ -325,125 +325,7 @@
     for (const w of watch) { const s = px[w.sym]; if (!s) continue; const F = E.features(w, s, mk, { qqq: qd, fearV: opts.fearV || 1 }); if (F) P[w.sym] = F; }
     return P;
   };
-  /* ── 시장 국면 판별 엔진 (유동성 × 경기 + 시장 내부·신용·포지셔닝). 가격으로 계산 가능한 지표만 쓰고 나머지는 '확인 불가'로 표시 ── */
+  // 시장 탭의 참고 시세(금리·환율·원자재·한국 지수 등). 점수에는 쓰지 않는다
   E.MACRO_SYMS = ['^TNX', '^FVX', '^IRX', 'DX-Y.NYB', 'KRW=X', '^KS11', '^KQ11', 'CL=F', 'GC=F', 'HG=F', '^SOX', 'RSP', 'IWM'];
-  const PHASE = { 1: '① 골디락스', 2: '② 유동성 주도 장세', 3: '③ 경기 주도 장세', 4: '④ 스태그플레이션 위험', 5: '⑤ 경기 침체·디레버리징', 6: '⑥ 초기 경기 회복', 7: '⑦ 정책 전환 기대', 8: '⑧ 혼합·전환 국면' };
-  const PHASE_NOTE = { 1: '위험자산 우호, 이익과 밸류에이션 동반 개선 가능', 2: '금리 민감 성장주 우호, 실적 악화 주의', 3: '실적·경기민감 업종 중심, 금리 부담 점검', 4: '주식·채권 모두 불리할 수 있어 현금흐름·방어력 중시', 5: '위험자산 회피, 신용위험·유동성·현금 확보 중요', 6: '경기민감주·소형주·금융·산업재 회복 가능성', 7: '실제 경기보다 정책 기대가 주가를 먼저 움직임', 8: '신호 충돌, 방향성보다 변동성·선별 대응 중요' };
-  const tri = (v, p2, p1, m1, m2) => v == null || !isFinite(v) ? null : v >= p2 ? 2 : v >= p1 ? 1 : v <= m2 ? -2 : v <= m1 ? -1 : 0;
-  function phaseOf(l, e, credit, up, improving) {
-    if (Math.abs(l) < .3 && Math.abs(e) < .3) return 8;
-    if (l >= .3 && e >= .3) return 1;
-    if (l >= .3 && e <= -.3) return up ? 2 : 7;
-    if (l < .3 && e >= .3) return 3;
-    if (l <= -.3 && e <= -.3) return (e <= -1 && credit <= -.3) ? 5 : 4;
-    if (e <= -.3 && improving) return 6;
-    return 8;
-  }
-  E.regime = function (px, fearScore, cnn, macro) {
-    const spy = px.SPY; if (!spy || spy.c.length < 260) return null; const n0 = spy.c.length;
-    const calc = off => {
-      const val = (s, k) => { const a = px[s]; if (!a || a.c.length < 70) return null; const i = a.c.length - 1 - off - (k || 0); return i >= 0 ? a.c[i] : null; };
-      const pct = (s, k) => { const a = val(s), b = val(s, k); return a != null && b ? a / b - 1 : null; };
-      const dif = (s, k) => { const a = val(s), b = val(s, k); return a != null && b != null ? a - b : null; };
-      const ratio = (a, b, k) => { const x = val(a, k), y = val(b, k); return x != null && y ? x / y : null; };
-      const sma50 = s => { const a = px[s]; if (!a || a.c.length < 60) return null; const e = a.c.length - off, sl = a.c.slice(Math.max(0, e - 50), e); return sl.reduce((x, y) => x + y, 0) / sl.length; };
-      const sma200 = s => { const a = px[s]; if (!a || a.c.length < 210) return null; const e = a.c.length - off, sl = a.c.slice(Math.max(0, e - 200), e); return sl.reduce((x, y) => x + y, 0) / sl.length; };
-      const I = []; const add = (reg, dom, id, label, raw, fmt, score, note, official) => I.push({ reg, dom, id, label, raw, fmt, score, tag: score == null ? '[확인 불가]' : official ? '[확인: 공식]' : '[해석]', note: note || '' });
-      // 공식 거시 데이터(재무부·FRED): 기준일 시점까지 '발표된' 값만 사용(발표 지연 반영 → 미래 참조 방지)
-      const adate = (() => { const a = px.SPY; return a.d[a.d.length - 1 - off]; })(), DAY = 864e5;
-      const mxs = id => macro && macro.series && macro.series[id];
-      const mx = (id, back) => { const s = mxs(id); if (!s) return null; const cut = new Date(Date.parse(adate) - ((s.lag || 0) + (back || 0)) * DAY).toISOString().slice(0, 10); let lo = 0, hi = s.d.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (s.d[m] <= cut) { r = m; lo = m + 1; } else hi = m - 1; } return r < 0 ? null : s.v[r]; };
-      const mxAvg = (id, n) => { const s = mxs(id); if (!s) return null; const cut = new Date(Date.parse(adate) - (s.lag || 0) * DAY).toISOString().slice(0, 10); let r = -1; for (let i = s.d.length - 1; i >= 0; i--) if (s.d[i] <= cut) { r = i; break; } if (r < n) return null; let t = 0; for (let i = r - n + 1; i <= r; i++) t += s.v[i]; return t / n; };
-      const hasMx = !!(macro && macro.series && macro.series.T2Y), hasOAS = mx('BAMLH0A0HYM2') != null;
-      const f1 = (v, d, u) => v == null ? '–' : (v >= 0 && u !== '%' ? '' : '') + v.toFixed(d == null ? 2 : d) + (u || '');
-      const pctS = v => v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
-      const ppS = v => v == null ? '–' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%p';
-      // ── 미국(US) ──
-      const d10 = dif('^TNX', 63), d5 = dif('^FVX', 63), dxy = pct('DX-Y.NYB', 63), cr = (ratio('HYG', 'IEF') && ratio('HYG', 'IEF', 63)) ? ratio('HYG', 'IEF') / ratio('HYG', 'IEF', 63) - 1 : null;
-      add('us', 'liq', 'r10', '미 10년물 금리 3개월 변화', d10, ppS(d10), tri(d10 == null ? null : -d10, .5, .2, -.2, -.5), '하락=유동성 우호');
-      add('us', 'liq', 'r5', '미 5년물 금리 3개월 변화', d5, ppS(d5), tri(d5 == null ? null : -d5, .5, .2, -.2, -.5), '정책금리 기대 대용');
-      add('us', 'liq', 'dxy', '달러인덱스 3개월 변화', dxy, pctS(dxy), tri(dxy == null ? null : -dxy, .03, .01, -.01, -.03), '달러 약세=글로벌 유동성 우호');
-      add('us', 'liq', 'fc', '금융여건(HYG/IEF) 3개월 변화', cr, pctS(cr), tri(cr, .02, .005, -.005, -.02), '신용 선호 개선=우호');
-      if (hasMx) {
-        const t2 = mx('T2Y') != null && mx('T2Y', 91) != null ? mx('T2Y') - mx('T2Y', 91) : null, rr = mx('DFII10') != null && mx('DFII10', 91) != null ? mx('DFII10') - mx('DFII10', 91) : null, wa = mx('WALCL') != null && mx('WALCL', 91) ? mx('WALCL') / mx('WALCL', 91) - 1 : null, nf = mx('NFCI');
-        add('us', 'liq', 't2', '미 2년물 금리 3개월 변화', t2, ppS(t2), tri(t2 == null ? null : -t2, .5, .2, -.2, -.5), '정책금리 기대(재무부 공식)', true);
-        add('us', 'liq', 'real10', '10년 실질금리 3개월 변화', rr, ppS(rr), tri(rr == null ? null : -rr, .4, .15, -.15, -.4), '실질금리 하락=유동성 우호(FRED)', true);
-        add('us', 'liq', 'bs', '연준 대차대조표 3개월 변화', wa, pctS(wa), tri(wa, .02, .005, -.005, -.02), '자산 확대=유동성 공급(FRED)', true);
-        add('us', 'liq', 'nfci', '시카고연은 금융여건지수(NFCI)', nf, f1(nf, 2), tri(nf == null ? null : -nf, .5, .2, -.2, -.5), '음수=평균보다 완화(FRED)', true);
-      } else add('us', 'liq', 'rr', '실질금리·중앙은행 대차대조표', null, '확인 불가', null, '공식 거시 데이터(macro.json)를 불러오지 못함');
-      const curveT = mx('T10Y') != null && mx('T3M') != null ? mx('T10Y') - mx('T3M') : null, curve = curveT != null ? curveT : (val('^TNX') != null && val('^IRX') != null ? val('^TNX') - val('^IRX') : null);
-      const cyc = (() => { const a = ['XLY', 'XLI'].map(s => pct(s, 63)), b = ['XLU', 'XLP'].map(s => pct(s, 63)); return a.every(x => x != null) && b.every(x => x != null) ? (a[0] + a[1]) / 2 - (b[0] + b[1]) / 2 : null; })();
-      const cg = pct('HG=F', 63) != null && pct('GC=F', 63) != null ? pct('HG=F', 63) - pct('GC=F', 63) : null;
-      const sm = pct('IWM', 63) != null && pct('SPY', 63) != null ? pct('IWM', 63) - pct('SPY', 63) : null;
-      add('us', 'econ', 'curve', '10년-3개월 금리차', curve, ppS(curve), tri(curve, 1.5, .5, -.2, -1), '플러스=확장 기대, 역전=침체 신호');
-      add('us', 'econ', 'cyc', '경기민감 vs 방어 업종(3개월 상대)', cyc, pctS(cyc), tri(cyc, .04, .015, -.015, -.04), '경기소비·산업재 − 유틸·필수소비');
-      add('us', 'econ', 'cg', '구리/금 3개월 상대', cg, pctS(cg), tri(cg, .05, .02, -.02, -.05), '구리 강세=산업 수요');
-      add('us', 'econ', 'sm', '러셀2000 vs S&P500(3개월 상대)', sm, pctS(sm), tri(sm, .03, .01, -.01, -.03), '소형주 강세=경기 낙관');
-      if (hasMx && mxs('ICSA')) {
-        const a4 = mxAvg('ICSA', 4), a26 = mxAvg('ICSA', 26), cl = a4 && a26 ? a4 / a26 - 1 : null, ur = mx('UNRATE') != null && mx('UNRATE', 91) != null ? mx('UNRATE') - mx('UNRATE', 91) : null;
-        add('us', 'econ', 'claims', '신규 실업수당 청구(4주 vs 26주 평균)', cl, pctS(cl), tri(cl == null ? null : -cl, .08, .03, -.03, -.10), '증가=고용 악화(FRED)', true);
-        add('us', 'econ', 'unrate', '실업률 3개월 변화', ur, ppS(ur), tri(ur == null ? null : -ur, .15, .05, -.15, -.3), '상승=경기 둔화(FRED)', true);
-      }
-      add('us', 'econ', 'pmi', 'PMI·소비·기업이익 전망', null, '확인 불가', null, 'ISM PMI·기업이익 전망은 무료 공식 데이터가 없어 확인 불가(프롬프트로 별도 확인)');
-      const sec = E.SECT.map(s => { const a = val(s), m = sma50(s); return a != null && m ? a > m : null; }).filter(x => x != null), above = sec.length ? sec.filter(Boolean).length / sec.length : null;
-      const eq = pct('RSP', 63) != null && pct('SPY', 63) != null ? pct('RSP', 63) - pct('SPY', 63) : null, s200 = sma200('SPY'), dev = s200 ? val('SPY') / s200 - 1 : null;
-      add('us', 'breadth', 'ab50', '50일선 위 섹터 비율(11개 중)', above, above == null ? '–' : (above * 100).toFixed(0) + '%', tri(above, .8, .6, .4, .2), '시장 참여도');
-      add('us', 'breadth', 'eq', '동일가중(RSP) vs 시총가중(SPY) 3개월', eq, pctS(eq), tri(eq, .02, .005, -.015, -.03), '소수 대형주 쏠림 점검');
-      add('us', 'breadth', 'd200', 'S&P500 200일선 대비', dev, pctS(dev), tri(dev, .06, .02, -.02, -.06), '추세');
-      const hy = ratio('HYG', 'IEF'), hy50 = (() => { const a = px.HYG, b = px.IEF; if (!a || !b || a.c.length < 60 || b.c.length < 60) return null; let s = 0, c = 0; for (let k = 0; k < 50; k++) { const x = a.c[a.c.length - 1 - off - k], y = b.c[b.c.length - 1 - off - k]; if (x && y) { s += x / y; c++; } } return c ? s / c : null; })();
-      const hyd = hy && hy50 ? hy / hy50 - 1 : null, vix = val('^VIX'), v3 = val('^VIX3M'), inv = vix && v3 ? vix / v3 : null;
-      if (hasOAS) {
-        const o = mx('BAMLH0A0HYM2'), o3 = mx('BAMLH0A0HYM2', 91), od = o != null && o3 != null ? o - o3 : null;
-        add('us', 'credit', 'oas', '하이일드 스프레드(OAS) 수준', o, f1(o, 2) + '%', tri(o == null ? null : -o, -3, -4, -5, -6), '낮을수록 신용 안정(FRED·ICE BofA)', true);
-        add('us', 'credit', 'oasd', '하이일드 스프레드 3개월 변화', od, ppS(od), tri(od == null ? null : -od, .4, .15, -.15, -.5), '확대=신용 스트레스(FRED)', true);
-      } else add('us', 'credit', 'hy', '하이일드/국채(HYG/IEF) 50일 평균 대비', hyd, pctS(hyd), tri(hyd, .01, .003, -.003, -.01), '신용스프레드 대용');
-      add('us', 'credit', 'vix', 'VIX 수준', vix, f1(vix, 1), tri(vix == null ? null : -vix, -14, -18, -24, -30), '낮을수록 안정');
-      add('us', 'credit', 'inv', 'VIX/VIX3M(기간구조)', inv, f1(inv, 2), inv == null ? null : inv >= 1 ? -2 : inv >= .95 ? -1 : inv <= .85 ? 1 : 0, '1 이상=패닉·역전');
-      const greed = fearScore == null ? null : 100 - fearScore;
-      add('us', 'pos', 'greed', cnn ? 'CNN 공포탐욕(탐욕 점수)' : '자체 공포지수(탐욕=100-공포)', greed, f1(greed, 0), tri(greed, 70, 55, 40, 25), '위험선호 수준(역발상 신호와 구분)');
-      add('us', 'pos', 'flow', '외국인·기관 수급·풋콜·ETF 자금', null, '확인 불가', null, '무료 가격 데이터로는 확인 불가');
-      // ── 한국(KR) ──
-      const kdev = (() => { const m = sma200('^KS11'); return m ? val('^KS11') / m - 1 : null; })(), k3 = pct('^KS11', 63), kq = pct('^KQ11', 63) != null && k3 != null ? pct('^KQ11', 63) - k3 : null, krw = pct('KRW=X', 63), sox = pct('^SOX', 63), kv = (() => { const m = sma50('^KS11'); return m ? val('^KS11') / m - 1 : null; })();
-      add('kr', 'liq', 'krw', '원/달러 3개월 변화', krw, pctS(krw), tri(krw == null ? null : -krw, .03, .01, -.01, -.03), '원화 약세=외국인 수급 부담');
-      add('kr', 'liq', 'kdxy', '달러인덱스 3개월 변화', dxy, pctS(dxy), tri(dxy == null ? null : -dxy, .03, .01, -.01, -.03), '글로벌 유동성');
-      add('kr', 'liq', 'kr10', '미 10년물 금리 3개월 변화', d10, ppS(d10), tri(d10 == null ? null : -d10, .5, .2, -.2, -.5), '미 금리→성장주 밸류에이션');
-      add('kr', 'liq', 'bok', '한국은행 금리·국내 유동성', null, '확인 불가', null, 'ECOS 지표는 앱에서 확인 불가');
-      add('kr', 'econ', 'sox', '반도체지수(SOX) 3개월', sox, pctS(sox), tri(sox, .1, .03, -.03, -.1), '한국 수출·이익 사이클 대용');
-      add('kr', 'econ', 'k3', 'KOSPI 3개월 수익률', k3, pctS(k3), tri(k3, .1, .03, -.03, -.1), '시장이 반영한 경기 기대');
-      add('kr', 'econ', 'exp', '수출 증가율·반도체 가격·실적 전망', null, '확인 불가', null, '관세청·산업부 자료는 앱에서 확인 불가');
-      add('kr', 'breadth', 'kd200', 'KOSPI 200일선 대비', kdev, pctS(kdev), tri(kdev, .08, .03, -.03, -.08), '추세');
-      add('kr', 'breadth', 'kd50', 'KOSPI 50일선 대비', kv, pctS(kv), tri(kv, .04, .015, -.015, -.04), '단기 추세');
-      add('kr', 'breadth', 'kq', 'KOSDAQ vs KOSPI(3개월 상대)', kq, pctS(kq), tri(kq, .04, .015, -.015, -.04), '중소형 참여도');
-      add('kr', 'credit', 'kvix', 'VIX 수준(글로벌 위험)', vix, f1(vix, 1), tri(vix == null ? null : -vix, -14, -18, -24, -30), '');
-      add('kr', 'credit', 'khy', '하이일드/국채 50일 평균 대비', hyd, pctS(hyd), tri(hyd, .01, .003, -.003, -.01), '글로벌 신용');
-      add('kr', 'pos', 'kgreed', cnn ? 'CNN 공포탐욕(탐욕 점수)' : '자체 공포지수(탐욕=100-공포)', greed, f1(greed, 0), tri(greed, 70, 55, 40, 25), '');
-      add('kr', 'pos', 'kflow', '외국인·기관 현·선물 수급', null, '확인 불가', null, 'KRX 수급은 앱에서 확인 불가');
-      const W = { liq: .30, econ: .25, breadth: .20, credit: .15, pos: .10 };
-      const out = {}, up = dev != null && dev > 0;
-      for (const reg of ['us', 'kr']) {
-        const ind = I.filter(x => x.reg === reg), dom = {}; let tw = 0, ts = 0, slots = 0, have = 0;
-        for (const d in W) { const a = ind.filter(x => x.dom === d), ok = a.filter(x => x.score != null); slots += a.length; have += ok.length; dom[d] = ok.length ? ok.reduce((s, x) => s + x.score, 0) / ok.length : null; if (dom[d] != null) { tw += W[d]; ts += W[d] * dom[d]; } }
-        const total = tw ? ts / tw : null, imp = (() => { const c = ind.find(x => x.id === 'cyc' || x.id === 'sox'); return c && c.score != null && c.score > 0; })();
-        const ph = dom.liq != null && dom.econ != null ? phaseOf(dom.liq, dom.econ, dom.credit == null ? 0 : dom.credit, reg === 'us' ? up : (kdev != null && kdev > 0), imp) : 8;
-        out[reg] = { ind, dom, total, phase: ph, conf: have / slots, have, slots };
-      }
-      return out;
-    };
-    const now = calc(0), m1 = calc(21), m3 = calc(63), res = { asof: spy.d[n0 - 1], regions: {} };
-    const build = (reg, o, p1, p3) => {
-      const dd = ['liq', 'econ', 'breadth', 'credit'], moved = dd.filter(d => o.dom[d] != null && p1.dom[d] != null && ((o.dom[d] >= .3 && o.dom[d] - p1.dom[d] <= -.3) || (o.dom[d] <= -.3 && o.dom[d] - p1.dom[d] >= .3))).length;
-      const changed = o.phase !== p1.phase, trans = (changed && moved >= 2) ? '전환 확인' : moved >= 2 ? '전환 가능성 높음' : (moved === 1 || changed) ? '전환 가능성 보통' : '전환 가능성 낮음';
-      const flip = Math.abs(o.dom.liq || 0) < Math.abs(o.dom.econ || 0) ? [-(o.dom.liq || 0), o.dom.econ] : [o.dom.liq, -(o.dom.econ || 0)], sub = phaseOf(flip[0] || 0, flip[1] || 0, o.dom.credit || 0, true, false);
-      const keys = o.ind.filter(x => x.score != null && Math.abs(x.score) === 1).sort((a, b) => ({ liq: .30, econ: .25, breadth: .20, credit: .15, pos: .10 }[b.dom]) - ({ liq: .30, econ: .25, breadth: .20, credit: .15, pos: .10 }[a.dom])).slice(0, 3);
-      const conf = o.conf >= .75 ? '보통' : '낮음';   // PMI·고용·기업이익·수급 등 공식 지표를 확인할 수 없으므로 '높음'은 부여하지 않음
-      return { ...o, prev1: p1.phase, prev3: p3.phase, trans, sub: sub !== o.phase ? sub : null, keys, confText: conf };
-    };
-    res.regions.us = build('us', now.us, m1.us, m3.us); res.regions.kr = build('kr', now.kr, m1.kr, m3.kr);
-    const gdom = {}; for (const d of ['liq', 'econ', 'breadth', 'credit', 'pos']) { const a = now.us.dom[d], b = now.kr.dom[d]; gdom[d] = a != null && b != null ? .7 * a + .3 * b : (a ?? b); }
-    const gp = phaseOf(gdom.liq || 0, gdom.econ || 0, gdom.credit || 0, true, false), gprev = m1.us && m1.kr ? phaseOf((.7 * (m1.us.dom.liq || 0) + .3 * (m1.kr.dom.liq || 0)), (.7 * (m1.us.dom.econ || 0) + .3 * (m1.kr.dom.econ || 0)), 0, true, false) : gp;
-    res.regions.global = { dom: gdom, phase: gp, prev1: gprev, conf: (now.us.conf * .7 + now.kr.conf * .3), confText: (now.us.conf * .7 + now.kr.conf * .3) >= .75 ? '보통' : '낮음', trans: res.regions.us.trans, keys: res.regions.us.keys, ind: now.us.ind, total: null };
-    res.phaseNames = PHASE; res.phaseNotes = PHASE_NOTE;
-    return res;
-  };
   root.Engine = E;
 })(typeof self !== 'undefined' ? self : this);

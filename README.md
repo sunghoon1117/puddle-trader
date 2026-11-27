@@ -9,4 +9,4 @@
 - PC 예약 수집(선택): `tools/sec_setup.bat` 로 연락처 등록 → `tools/install_sec_task.bat`
 
 ## PC에서
-`run.bat` (http://localhost:8777). 휴대폰 테스트는 `python server.py 8777 --lan`.
+`run.bat` (http://localhost:8777). 휴대폰 테스트는 `python server.py 8777 --lan`. 로컬 서버는 앱 파일과 `data/*.json` 만 내줍니다.

@@ -1,24 +1,24 @@
 # 디벨롭 (puddle-trader) — Claude Code 작업 지침
 
-추세·가치 매매 관점을 숫자 규칙으로 만든 **모바일 우선 PWA**. **화면·문서에 특정 유튜브 채널명·영상은 넣지 않는다**(2026-11-26 사용자 요청). 탭은 오늘·종목·시장·거물·내 계좌 + ⚙설정(검증 요약 포함). 검증 탭·시장 국면·AI 해설·영상 분석은 삭제됨. 정적 사이트(GitHub Pages) + 자동 수집(GitHub Actions) + 실시간·AI 프록시(Cloudflare Worker). 서버·DB 없음. 사용자 개인 데이터(보유·현금·기록)는 **기기 안에만** 저장된다.
+추세·가치 매매 관점을 숫자 규칙으로 만든 **모바일 우선 PWA**. **화면·문서에 특정 유튜브 채널명·영상은 넣지 않는다**(2026-11-26 사용자 요청). 탭은 오늘·종목·시장·거물·내 계좌 + ⚙설정(검증 요약 포함). 검증 탭·시장 국면·AI 해설(워커의 AI 주소 포함)·영상 분석은 삭제됨. 정적 사이트(GitHub Pages) + 자동 수집(GitHub Actions) + 실시간 시세 프록시(Cloudflare Worker). 서버·DB 없음. 사용자 개인 데이터(보유·현금·기록)는 **기기 안에만** 저장된다.
 상세 인수인계 문서는 저장소 밖 `puddle-trader-handoff/` 에 있을 수 있다(없으면 이 파일과 README.md 를 기준으로 한다).
 
 ## 파일 지도
 | 경로 | 역할 |
 |---|---|
-| `engine.js` | **공용 엔진**: 지표·신호·3관점 점수·차수·이벤트연구·시뮬레이션·자동 보정·시장 국면(`E.regime`). 브라우저와 Web Worker 양쪽에서 실행. 라이브 추천과 백테스트가 같은 코드를 쓴다 |
+| `engine.js` | **공용 엔진**: 지표·신호·3관점 점수·차수·이벤트연구·시뮬레이션·자동 보정. 브라우저와 Web Worker 양쪽에서 실행. 라이브 추천과 백테스트가 같은 코드를 쓴다 |
 | `detail.js` | 카드 재배치·접기 도우미(`reorderCards`, `collapseCard`), 지표 클릭 상세 시트(`data-dt` 키: px/mac/fear/cnn/val/ind/dom), 종목 탭의 3관점 비교·투자지표(PER 등) 카드, 종목 검색 추가. `app.js` 보다 먼저 로드 |
 | `weekend.js` | 장외·주말 시장 카드(나스닥100·종합 지수 직전 종가). 선물·코인은 표시하지 않음. IG 'Weekend US Tech 100' 은 CFD 라 무료 시세가 없어 외부 링크로만 연결, 점수 미반영 |
 | `positions.js`, `tools/position_collect.py` | 포지션·수급 화면/수집: 옵션 미결제약정(OCC), 선물 롱·숏(CFTC 주간), 공매도(FINRA·Nasdaq), 기관 보유(Nasdaq), 한국 투자자별 순매매(네이버), 만기별 예상 범위(Nasdaq 등가격 콜+풋; SPX 는 SPY 대용, VIX 없음)·실적 발표일(일정 3주 조회, 없으면 간격 추정)과 과거 반응. 하루 1회, 403/429 는 출처별 12시간 휴지(CBOE 는 Cloudflare 차단이라 쓰지 않음). 점수 미반영 |
-| `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF, 점수 신뢰도 곡선, 한국 종목, 국면 과거 검증) |
+| `bt-worker.js` | 백그라운드 검증·자동 보정(기준선 비교, 표본 외, 중립 ETF) |
 | `app.js`, `styles.css`, `index.html`, `sw.js`, `manifest.webmanifest`, `guide.html` | 모바일 우선 UI(오늘·종목·시장·거물·내 계좌, 헤더의 ⚙설정), 서비스 워커, 사용 설명서 |
-| `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료), `/api/ai`(Gemini 우선·무료 Workers AI 대체) |
+| `worker/proxy.js`, `worker/wrangler.toml` | Cloudflare Worker: `/api/batch`(실시간 시세), `/api/chart`, `/api/search`(종목 검색), `/api/fund`(재무 원자료). 비밀 키 없음. 앱 주소·localhost Origin 만 응답 + 접속 IP 당 1분 200회 제한(`ratelimits`) |
 | `tools/update_data.py` | 야후 시세·재무 → `data/px/*.json`, `fund.json`, `manifest.json` |
 | `tools/sec_check.py`, `sec_local.py`(+`.bat`) | SEC 는 GitHub 서버 IP 를 막지만 사용자 PC 는 열림 → PC 에서 수집해 `data/tracker` 를 커밋·푸시. `tracker_collect.py` 가 사이트+저장소 데이터를 합쳐 서버 실행이 PC 수집분을 지우지 않는다. 연락처는 사용자 PC 환경변수 `SEC_USER_AGENT` 에만 둔다 |
 | `tools/tracker_collect.py` | SEC Form4·13F·하원 PTR·FMP 의원 거래 → `data/tracker/*.json` |
 | `tools/macro_collect.py`, `calendar_collect.py` | 재무부·FRED 거시, 연준·BLS 공식 일정 |
 | `tools/privacy_check.py` | 배포 전 이메일·키·경로 검사(실패 시 배포 중단) |
-| `.github/workflows/update-data.yml` | 5분(시세)·30분(거물/일정/거시/영상)·일 1회 전체 수집 후 Pages 배포 |
+| `.github/workflows/update-data.yml` | 5분(시세)·30분(거물/일정/거시/포지션)·일 1회 전체 수집 후 Pages 배포 |
 | `data/universe.json`, `data/live.json` | 관심종목·시장 심볼 / 공개 워커 주소(비밀 아님) |
 
 ## 자주 쓰는 명령
@@ -39,13 +39,15 @@ gh workflow run update-data.yml            # 서버 갱신·배포 수동 실행
 4. **비밀·개인정보 비노출**: 키·토큰·이메일·로컬 경로를 코드·문서·채팅·공개 저장소에 쓰지 않는다. 비밀은 GitHub Secrets / Cloudflare 비밀 값에만. 계정 가입·로그인·결제는 사용자가 직접 한다. 자동 승인 정책이 비밀 저장소 쓰기·상시 예약 작업을 거부하면 우회하지 말고 사용자가 실행할 스크립트로 제공한다.
 5. **무료만 사용**: 유료 API·유료 플랜 금지.
 6. **모바일 우선**: 375px 기준, 가로 스크롤 없음, 입력 중 전체 재렌더 금지, 오프라인에서도 열림. 투자 권유·수익 보장 표현 금지.
-7. 신호가 검증되지 않은 정보(거물 거래, 영상 분석, 시장 국면)는 **참고 정보**로만 표시하고 매수 점수에 넣지 않는다.
+7. 신호가 검증되지 않은 정보(거물 거래, 포지션·수급 등)는 **참고 정보**로만 표시하고 매수 점수에 넣지 않는다.
 
 ## 알려진 함정
 - Windows 기본 인코딩(cp949): 파이썬 파일 입출력에 항상 `encoding="utf8"`.
 - PowerShell 큰따옴표 문자열 안의 JS 템플릿(`` ` ``, `${}`)은 깨진다 → 코드 수정은 Edit/Write 도구 또는 파이썬 스크립트로. PowerShell 의 `R` 은 `Invoke-History` 별칭이다.
 - 야후 `range=max` 는 월봉 → 일봉 전체는 `period1=0&interval=1d`.
-- Gemini: 무료 키는 구글 검색 연동 불가(검색 없이 답하면 **옛 수치를 사실처럼** 말함) → 외부 최신 수치를 AI 에게 채우게 하지 않는다. 모델 이름은 목록에서 자동 선택. 워커는 `placement` 로 미국 실행(그렇지 않으면 "User location is not supported").
+- **보안 규칙**: 화면에 넣는 값은 `esc()`(링크는 `safeUrl()`)를 거친다. 백업 복원(`restoreBackup`)은 아는 항목만 새로 만들므로 저장 항목을 추가하면 여기에도 추가(안 하면 복원 때 사라짐). CSP `connect-src` 는 워커 주소 하나만 허용 → 주소를 바꾸면 `index.html` 과 `data/live.json` 을 함께 수정. 새 화면 파일은 `server.py` 의 `APP_FILES`·`sw.js`·배포 워크플로에 추가. 외부 GitHub 액션은 커밋 해시로 고정(자동 갱신 없음 → 가끔 새 버전 확인).
+- 같은 GitHub 계정의 다른 Pages 사이트는 이 앱과 저장 공간(localStorage)·Origin 을 공유한다(2026-11-28 현재 Pages 는 이 저장소뿐). 다른 사이트를 올리기 전에 검토.
+- AI 기능을 다시 만들 경우 Origin 확인만으로는 누구나 호출할 수 있으므로 별도 인증이 필요하다.
 - 설치된 홈 화면 앱의 아이콘·이름은 설치 시점에 고정(삭제 후 재설치해야 변경).
 - GitHub Pages 배포가 겹치면 "in progress deployment" 로 한 번 실패할 수 있음(재실행).
 

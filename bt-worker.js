@@ -58,38 +58,6 @@ self.onmessage = ev => {
       let ev = []; for (const s in PN) ev = ev.concat(E.events(PN[s], E.scores(PN[s], base)[L], L, base.thr[L], {}));
       const sm = E.summarize(ev, PN); out.neutral.lens[L] = { n: sm.n, h: sm.h, byK: sm.byK, mae: sm.mae };
     }
-    // 점수 신뢰도 곡선: 점수대별로 과거 60일 뒤 올랐던 비율(과열일 제외). 점수가 실제로 확률과 연결되는지 검증
-    prog(.96, '점수 신뢰도 곡선');
-    const B = [[0, 20], [20, 40], [40, 55], [55, 70], [70, 101]], scsN = {}; for (const s in PN) scsN[s] = E.scores(PN[s], base);
-    const curveOf = (Pset, scs, L) => {
-      const o = B.map(([a, b]) => ({ lo: a, hi: b, n: 0, w: 0, m: 0 })); let bn = 0, bw = 0;
-      for (const s in Pset) { const F = Pset[s], sc = scs[s][L], f = F.fwd[60]; for (let i = E.START; i < F.n - 62; i++) { const v = f[i]; if (!isFinite(v) || E.overheated(F, i)) continue; bn++; if (v > 0) bw++; const x = sc[i], k = B.findIndex(([a, b]) => x >= a && x < b); if (k < 0) continue; o[k].n++; if (v > 0) o[k].w++; o[k].m += v; } }
-      return { rows: o.map(q => ({ lo: q.lo, hi: q.hi, n: q.n, win: q.n ? q.w / q.n : null, mean: q.n ? q.m / q.n : null })), base: bn ? bw / bn : null };
-    };
-    out.curve = { watch: {}, neutral: {} };
-    for (const L of ['P', 'D', 'C']) { out.curve.watch[L] = curveOf(P, scsF, L); out.curve.neutral[L] = curveOf(PN, scsN, L); }
-    // 시장 국면 과거 검증: 약 월 1회(21거래일), 그 시점까지의 데이터만으로 국면을 계산 → 이후 S&P500(SPY) 3개월 수익률 비교
-    prog(.98, '시장 국면 과거 검증');
-    try {
-      const spy = px.SPY, cut = (a, date) => { if (!a) return null; let lo = 0, hi = a.d.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (a.d[m] <= date) { r = m; lo = m + 1; } else hi = m - 1; } return r < 0 ? null : { d: a.d.slice(0, r + 1), c: a.c.slice(0, r + 1) }; };
-      const startIdx = spy.d.findIndex(d => d >= '2008-06-01'), by = {}, byG = {}; let bn = 0, bw = 0, bm = 0;
-      for (let i = Math.max(startIdx, 300); i + 64 < spy.d.length; i += 21) {
-        const date = spy.d[i], tp = {}; for (const s in px) { const c = cut(px[s], date); if (c) tp[s] = c; }
-        const R = E.regime(tp, null, false); if (!R) continue; const f = spy.c[i + 64] / spy.c[i + 1] - 1; bn++; if (f > 0) bw++; bm += f;
-        for (const [m, key] of [[by, R.regions.us.phase], [byG, R.regions.global.phase]]) { const q = m[key] ||= { n: 0, w: 0, s: 0 }; q.n++; if (f > 0) q.w++; q.s += f; }
-      }
-      const fmt = m => Object.fromEntries(Object.entries(m).map(([k, q]) => [k, { n: q.n, win: q.w / q.n, mean: q.s / q.n }]));
-      out.regimeBt = { n: bn, from: spy.d[Math.max(startIdx, 300)], base: { win: bw / bn, mean: bm / bn }, us: fmt(by), global: fmt(byG) };
-    } catch (e) { out.regimeBt = null; }
-    // 한국 종목 검증: 미국에서 보정된 최종 파라미터를 한국 종목(미국 시장 지표 기준)에 그대로 적용해 기준선과 비교
-    try {
-      const kw = ev.data.krWatch || [];
-      if (kw.length) {
-        const PK = E.prepAll(px, kw, mk, { fearV: base.fearV }), ks = Object.keys(PK); out.kr = { syms: ks, lens: {} };
-        for (const L of ['P', 'D', 'C']) { let e2 = []; for (const s of ks) e2 = e2.concat(E.events(PK[s], E.scores(PK[s], fin)[L], L, fin.thr[L], {})); const sm = E.summarize(e2, PK); out.kr.lens[L] = { n: sm.n, h: sm.h, byK: sm.byK, mae: sm.mae }; }
-      }
-    } catch (e) { out.kr = null; }
-    out.edgeP = out.lens.P.edge; out.edgeD = out.lens.D.edge;
     self.postMessage({ type: 'done', result: out });
   } catch (e) { self.postMessage({ type: 'error', msg: String(e && e.message || e) }); }
 };

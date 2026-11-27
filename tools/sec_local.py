@@ -38,7 +38,11 @@ def run(*a, check=True):
 
 
 def publish(path, message):
-    """해당 폴더만 커밋·푸시. 올린 것이 있으면 True"""
+    """해당 폴더만 커밋·푸시. 올린 것이 있으면 True. 공개 저장소에 올라가기 전에 개인정보·비밀을 점검한다."""
+    chk = run(sys.executable, os.path.join("tools", "privacy_check.py"), check=False)
+    if chk.returncode:
+        run("git", "checkout", "--", path, check=False)
+        fail("개인정보·비밀 점검 실패로 올리지 않았습니다: " + (chk.stdout or chk.stderr)[-300:].strip().replace("\n", " / "))
     run("git", "add", path)
     if run("git", "diff", "--cached", "--quiet", "--", path, check=False).returncode == 0:
         return False

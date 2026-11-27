@@ -3,13 +3,15 @@ main = "proxy.js"
 compatibility_date = "2026-01-01"
 workers_dev = true
 
-[ai]
-binding = "AI"
-
-# Gemini API 가 지원하지 않는 지역의 Cloudflare 서버에서 실행되면 "User location is not supported" 오류가 나므로 실행 위치를 미국으로 지정
-[placement]
-region = "aws:us-east-1"
-
-# 앱(GitHub Pages) 주소만 시세·검색·AI 호출을 허용(공개 주소라 비밀이 아님)
+# 앱(GitHub Pages) 주소에서 온 요청만 시세·검색·재무를 응답(공개 주소라 비밀이 아님)
 [vars]
 APP_ORIGIN = "https://sunghoon1117.github.io"
+
+# 접속 IP 당 속도 제한(wrangler 4.36 이상)
+[[ratelimits]]
+name = "RL"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 200
+  period = 60

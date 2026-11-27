@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://production.dataviz.cnn.io; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://puddle-quotes.pt-8f34da.workers.dev https://production.dataviz.cnn.io; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0a0f1d" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
 </head>
 <body>
 <div class="app">
-  <aside class="side" aria-label="메뉴"><div class="brand">디벨롭</div><div id="sideNav" role="tablist"></div></aside>
+  <aside class="side" aria-label="메뉴"><div class="brand">디벨롭</div><div id="sideNav"></div></aside>
   <div>
     <header class="top">
       <div class="r1"><h1 id="pageTitle">오늘</h1><button class="fresh" id="fresh" aria-label="데이터 상태 보기"><i></i><span>확인 중</span></button><button class="iconbtn" id="btnRefresh" aria-label="지금 새로고침"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg></button><button class="iconbtn" id="btnSet" aria-label="설정·도움말"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button></div>
@@ -30,7 +30,6 @@
       <section id="v-stock" class="view"></section>
       <section id="v-market" class="view"></section>
       <section id="v-whales" class="view"></section>
-      <section id="v-verify" class="view"></section>
       <section id="v-acct" class="view"></section>
       <section id="v-set" class="view"></section>
       <div class="disclaimer"><b>반드시 읽어 주세요</b>
@@ -40,7 +39,7 @@
         <li>레버리지 ETF는 원금 대부분을 잃을 수 있고, 한국 종목은 미국 시장 지표로 계산합니다. 모든 판단과 책임은 본인에게 있습니다.</li></ul></div>
     </main>
   </div>
-  <nav class="bottom" id="botNav" aria-label="하단 메뉴" role="tablist"></nav>
+  <nav class="bottom" id="botNav" aria-label="하단 메뉴"></nav>
 </div>
 <div id="modal" class="modal" hidden></div>
 <script src="engine.js"></script>

@@ -101,7 +101,7 @@ function dtHTML(s) {
   <div class="row" style="align-items:flex-end"><div style="font-size:2rem;font-weight:800;line-height:1">${dtFmt(s, last)}</div><div class="small muted">${esc(s.d[n - 1])} 기준${prev != null ? ' · 직전 ' + dtFmt(s, prev) + ' (' + esc(s.d[n - 2]) + ') <span class="' + dtCls(s, last, prev) + '">' + dtDiff(s, last, prev) + '</span>' : ''}</div></div>`;
   if (s.band) { const bn = s.band.find(b => last >= b[0] && last < b[1]) || s.band.at(-1); h += `<div>${pill(bn[2], '')}</div>`; }
   if (s.desc) h += `<p class="small" style="margin:0">${esc(s.desc)}</p>`;
-  h += `<div class="chips">${DT_RNG.map(r => `<button class="chip" style="padding:3px 10px;min-height:30px" data-drng="${r[0]}" aria-pressed="${r[0] === DT.rng}">${r[0]}</button>`).join('')}</div><canvas id="dtCv" style="height:210px" role="img" aria-label="${esc(s.title)} 추이"></canvas><div class="small muted" id="dtInfo">차트를 누르면 날짜별 값이 표시됩니다</div>`;
+  h += `<div class="chips">${DT_RNG.map(r => `<button class="chip" style="padding:3px 10px" data-drng="${r[0]}" aria-pressed="${r[0] === DT.rng}">${r[0]}</button>`).join('')}</div><canvas id="dtCv" style="height:210px" role="img" aria-label="${esc(s.title)} 추이"></canvas><div class="small muted" id="dtInfo">차트를 누르면 날짜별 값이 표시됩니다</div>`;
   h += `<h3>기간별 변화</h3><div class="tw"><table><thead><tr><th>기간</th><th class="n">당시 값</th><th class="n">변화</th></tr></thead><tbody>${LOOKS.map(([nm, dd]) => { const a = dtAgo(s, dd); return a ? `<tr><td>${nm} 전 <span class="muted small">${esc(a[0].slice(2))}</span></td><td class="n">${dtFmt(s, a[1])}</td><td class="n ${dtCls(s, last, a[1])}">${dtDiff(s, last, a[1])}</td></tr>` : ''; }).join('')}</tbody></table></div>`;
   h += `<h3>최근 1년 위치</h3><dl class="kv"><dt>최고</dt><dd>${dtFmt(s, hi)}</dd><dt>평균</dt><dd>${dtFmt(s, avg)}</dd><dt>최저</dt><dd>${dtFmt(s, lo)}</dd><dt>현재 위치(낮음 0 ~ 높음 100)</dt><dd>${(rank * 100).toFixed(0)}</dd><dt>전체 기간 최고 / 최저</dt><dd>${dtFmt(s, maxOf(s.v))} / ${dtFmt(s, minOf(s.v))}</dd><dt>데이터 기간</dt><dd>${esc(s.d[0])} ~ ${esc(s.d[n - 1])} (${n.toLocaleString()}개)</dd></dl>`;
   if (s.cnnx && CNN) h += `<h3>CNN 제공 비교값</h3><dl class="kv"><dt>전일</dt><dd>${F.n1(CNN.prev)}</dd><dt>1주 전</dt><dd>${F.n1(CNN.w1)}</dd><dt>1개월 전</dt><dd>${F.n1(CNN.m1)}</dd><dt>1년 전</dt><dd>${F.n1(CNN.y1)}</dd></dl><h3>구성 7요소 <span class="muted small">눌러서 설명 보기</span></h3>${Object.keys(CNN_PARTS).map(k => CNN.parts[k] ? `<button class="row small" data-dt="cnnp:${k}" style="padding:6px 0;width:100%;background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="flex:1">${esc(CNN_PARTS[k])}</span><b>${CNN.parts[k].score.toFixed(0)}</b>${pill(CNN_KO[CNN.parts[k].rating] || CNN.parts[k].rating, CNN.parts[k].score >= 55 ? 'good' : CNN.parts[k].score <= 45 ? 'bad' : 'mut')}</button>` : '').join('')}`;
@@ -131,7 +131,6 @@ async function ensureFundRaw(sym) {
 }
 const lastOf = (o) => { if (!o) return null; const k = Object.keys(o).sort(); return k.length ? o[k.at(-1)] : null; };
 const prevYr = o => { if (!o) return null; const k = Object.keys(o).sort(), y = x => parseInt(String(x).slice(0, 4), 10); return k.length > 1 && isFinite(y(k.at(-1))) && y(k.at(-1)) - y(k.at(-2)) === 1 ? o[k.at(-2)] : null; };   // 바로 직전 연도가 있을 때만
-const prevOf = (o, back = 1) => { if (!o) return null; const k = Object.keys(o).sort(); return k.length > back ? o[k[k.length - 1 - back]] : null; };
 function valCalc(sym) {
   const raw = valRaw(sym), a = raw && raw.a || {}, t = raw && raw.t || {}, f = FUND[sym] || {}, px = priceOf(sym), o = {};
   const tl = k => t[k] && t[k].length ? t[k].at(-1) : null, eps = tl('DilutedEPS'), mc = tl('MarketCap'), ni = lastOf(a.NetIncome), rev = lastOf(a.TotalRevenue), oi = lastOf(a.OperatingIncome), eq = lastOf(a.StockholdersEquity), debt = lastOf(a.TotalDebt), cash = lastOf(a.CashAndCashEquivalents), fcf = lastOf(a.FreeCashFlow), ocf = lastOf(a.OperatingCashFlow), div = lastOf(a.CashDividendsPaid);
@@ -150,7 +149,7 @@ function valCard(sym) {
   const w = S.watch.find(x => x.sym === sym), ent = FEAT[sym], lv = LIVE[sym]; if (!w || !ent) return '';
   const Fx = ent.F, B = Fx.B, i = Fx.n - 1, fm = (x, d = 1) => x == null || !isFinite(x) ? '–' : x.toFixed(d), pc = (x, d = 1) => x == null || !isFinite(x) ? '–' : (x * 100).toFixed(d) + '%';
   const sp = key => { try { const s = dtSeries(key); return s && s.v.length >= 3 ? s.v.slice(-48) : null; } catch (e) { return null; } };
-  const row = (name, val, tone, note, dtk, spark) => `<${dtk ? 'button data-dt="' + dtk + '"' : 'div'} class="sig" style="grid-template-columns:1fr auto;width:100%;${dtk ? 'background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;text-align:left;cursor:pointer' : ''}"><div><div>${name}${dtk ? ' <span class="muted small">›</span>' : ''}</div><div class="small muted">${note}</div>${spark ? '<div style="margin-top:4px">' + wkSpark(spark, true, true) + '</div>' : ''}</div><div class="right"><b>${val}</b>${tone ? '<div>' + pill(tone[0], tone[1]) + '</div>' : ''}</div></${dtk ? 'button' : 'div'}>`;
+  const row = (name, val, tone, note, dtk, spark) => `<${dtk ? 'button data-dt="' + esc(dtk) + '"' : 'div'} class="sig" style="grid-template-columns:1fr auto;width:100%;${dtk ? 'background:none;border:0;border-bottom:1px solid var(--line);font:inherit;color:inherit;text-align:left;cursor:pointer' : ''}"><div><div>${name}${dtk ? ' <span class="muted small">›</span>' : ''}</div><div class="small muted">${note}</div>${spark ? '<div style="margin-top:4px">' + wkSpark(spark, true, true) + '</div>' : ''}</div><div class="right"><b>${val}</b>${tone ? '<div>' + pill(tone[0], tone[1]) + '</div>' : ''}</div></${dtk ? 'button' : 'div'}>`;
   const T = (v, good, bad, lowGood) => v == null || !isFinite(v) ? null : lowGood ? (v <= good ? ['기준 이하', 'mut'] : v >= bad ? ['기준 이상', 'mut'] : ['중간', 'mut']) : (v >= good ? ['기준 이상', 'mut'] : v <= bad ? ['기준 이하', 'mut'] : ['중간', 'mut']);   // 일반적 기준과의 위치일 뿐 좋고 나쁨의 판정이 아님(업종마다 다름)
   let h = `<div class="card"><h2>투자지표 <span class="muted small">업종마다 기준이 다름 · 점수에는 반영하지 않는 참고 정보</span></h2>`;
   h += `<h3 style="margin-top:4px">추세·타이밍 <span class="muted small">(가격 기반)</span></h3>${row('고점(52주) 대비', pc(B.dd[i]), B.dd[i] <= -.2 ? ['눌림', 'good'] : null, '많이 빠질수록 분할 매수 구간(레버리지는 기초지수 환산)')}${row('200일선 이격', pc(B.dev200[i]), B.dev200[i] >= .25 ? ['과열', 'warn'] : B.dev200[i] <= -.1 ? ['아래', 'good'] : null, '200일 이동평균 대비 현재가 위치')}${row('주봉 RSI', fm(B.rW[i]), B.rW[i] >= 70 ? ['과열', 'warn'] : B.rW[i] <= 40 ? ['침체', 'good'] : null, '70↑ 과열 · 40↓ 침체')}${row('일봉 RSI', fm(B.rD[i]), B.rD[i] >= 70 ? ['과열', 'warn'] : B.rD[i] <= 30 ? ['과매도', 'good'] : null, '30↓ 과매도 · 70↑ 과매수')}`;
@@ -161,13 +160,13 @@ function valCard(sym) {
   const bigU = x => x == null ? '–' : Math.abs(x) >= 1e12 ? cur + (x / 1e12).toFixed(2) + 'T' : Math.abs(x) >= 1e9 ? cur + (x / 1e9).toFixed(1) + 'B' : cur + (x / 1e6).toFixed(0) + 'M';
   const fair = ent.fair, pf = fair ? lv.price / fair : null;
   h += `<h3 style="margin-top:14px">현금흐름·가치 <span class="muted small">(영업현금흐름 중심)</span></h3>`;
-  h += row('주가 ÷ 영업현금흐름(P/CF)', v.pcf != null ? fm(v.pcf) + '배' : '–', T(v.pcf, 18, 30, true), '영업현금흐름 18배를 적정 멀티플로 사용 (' + (FUND[sym] ? '기준 ' + FUND[sym].asof : '') + ')');
+  h += row('주가 ÷ 영업현금흐름(P/CF)', v.pcf != null ? fm(v.pcf) + '배' : '–', T(v.pcf, 18, 30, true), '영업현금흐름 18배를 적정 멀티플로 사용 (' + (FUND[sym] ? '기준 ' + esc(FUND[sym].asof) : '') + ')');
   h += row('영업현금흐름 수익률', pc(v.cfy), T(v.cfy, .055, .02), '주당 영업현금흐름 ÷ 주가 (높을수록 주가 대비 현금 창출이 큼)');
   h += row('잉여현금흐름(FCF) 수익률', pc(v.fcfy), T(v.fcfy, .04, 0), '설비투자까지 뺀 현금 ÷ 시가총액. 설비투자 부담도 확인 (추세는 FCF 금액)', 'va:' + sym + ':FCF', sp('va:' + sym + ':FCF'));
   h += row('영업현금흐름 연평균 성장(CAGR)', pc(v.cagr, 0), T(v.cagr, .15, 0), '적정가 계산에 5~20% 범위로 보수 반영', 'va:' + sym + ':OCF', sp('va:' + sym + ':OCF'));
   h += row('적정가 대비 현재가', pf != null ? (pf * 100).toFixed(0) + '%' : '–', pf == null ? null : pf <= .85 ? ['추정 적정가보다 낮음', 'mut'] : pf >= 1.2 ? ['추정 적정가보다 높음', 'mut'] : ['추정 적정가 부근', 'mut'], fair ? '적정가 ' + fmtPx(sym, fair) + ' (' + ent.fairSrc + ')' : '적정가 계산 불가(현금흐름 부족)');
   h += `<h3 style="margin-top:14px">밸류에이션 <span class="muted small">(일반 지표)</span></h3>`;
-  const perTxt = v.per === 'neg' ? '적자' : v.per != null ? fm(v.per) + '배' : '–', perNote = (v.per > 0 && v.perMed ? `과거 중앙값 ${fm(v.perMed)}배 대비 ${(v.per / v.perMed * 100).toFixed(0)}%` : '주가 ÷ 12개월 주당순이익') + (v.curMismatch ? ' · 재무 통화 차이로 야후 제공 PER 사용' : '') + (v.perAsof ? ` · EPS ${v.eps != null ? v.eps.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '–'} (${v.perAsof})` : '');
+  const perTxt = v.per === 'neg' ? '적자' : v.per != null ? fm(v.per) + '배' : '–', perNote = (v.per > 0 && v.perMed ? `과거 중앙값 ${fm(v.perMed)}배 대비 ${(v.per / v.perMed * 100).toFixed(0)}%` : '주가 ÷ 12개월 주당순이익') + (v.curMismatch ? ' · 재무 통화 차이로 야후 제공 PER 사용' : '') + (v.perAsof ? ` · EPS ${v.eps != null ? v.eps.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '–'} (${esc(v.perAsof)})` : '');
   h += row('PER', perTxt, typeof v.per === 'number' && v.perMed ? (v.per <= v.perMed * .85 ? ['자기 과거 중앙값보다 낮음(싸다는 뜻 아님)', 'mut'] : v.per >= v.perMed * 1.2 ? ['자기 과거 중앙값보다 높음', 'mut'] : ['자기 과거 중앙값 수준', 'mut']) : null, perNote, 'per:' + sym, sp('per:' + sym));
   h += row('선행 PER (야후 추정)', v.fper != null ? fm(v.fper) + '배' : '–', null, '추정치라 틀릴 수 있음 — 참고만', 'val:' + sym + ':ForwardPeRatio');
   h += row('PBR', v.pbr != null ? fm(v.pbr, 2) + '배' : '–', null, '주가 ÷ 주당순자산', 'val:' + sym + ':PbRatio', sp('val:' + sym + ':PbRatio'));
@@ -190,7 +189,7 @@ function valCard(sym) {
 function signalCard(sym) {
   const ent = FEAT[sym], lv = LIVE[sym]; if (!ent || !lv) return '';
   const Fx = ent.F, prm = params(), by = new Map();
-  for (const L of ['P', 'D']) for (const r of E.explain(Fx, L, prm)) { if (r.na) continue; const o = by.get(r.id); if (!o || (r.on && !o.on)) by.set(r.id, r); }
+  for (const L of ['P', 'D']) for (const r of E.explain(Fx, L, prm)) { if (r.na || r.id.startsWith('man_')) continue; const o = by.get(r.id); if (!o || (r.on && !o.on)) by.set(r.id, r); }
   const all = [...by.values()], on = all.filter(r => r.on && r.type !== 'warn'), warn = all.filter(r => r.on && r.type === 'warn'), off = all.filter(r => !r.on && r.type !== 'warn');
   const li = r => `<div class="small" style="padding:3px 0"><span class="${r.type === 'warn' ? 'neg' : 'pos'}">●</span> ${esc(r.label)} <span class="muted">— ${esc(r.detail)}</span></div>`;
   return `<div class="card"><h2>신호 근거 <span class="muted small">통합 ${lv.lens.C.score}점 · 추세 ${lv.lens.P.score} · 가치 ${lv.lens.D.score}</span></h2><div class="small b">켜진 신호 ${on.length}개</div>${on.map(li).join('') || '<div class="small muted">켜진 신호 없음</div>'}${warn.length ? '<div class="small b" style="margin-top:8px">주의</div>' + warn.map(li).join('') : ''}<details style="margin-top:8px"><summary class="small b" style="cursor:pointer">아직 안 켜진 신호 ${off.length}개</summary>${off.map(r => `<div class="small muted" style="padding:2px 0">○ ${esc(r.label)} — ${esc(r.detail)}</div>`).join('')}</details><p class="small muted" style="margin:8px 0 0">점수는 확률이 아닙니다. 과거 검증에서 의미가 있었던 것은 신호가 처음 켜진 구간뿐입니다.</p></div>`;
@@ -242,12 +241,6 @@ function reorderCards(el, keys) {
   const out = kids.slice(); slots.forEach((slot, n) => { out[slot] = picked[n][1]; });
   out.forEach(k => el.appendChild(k));
 }
-/* 첫 제목(h2) 전체를 접이식 카드로 바꾼다(요약 줄만 보이고 눌러서 펼침) */
-function collapseCard(html, open) {
-  if (!html) return '';
-  return html.replace('<div class="card"><h2>', `<details class="card"${open ? ' open' : ''}><summary class="b sumh">`).replace('</h2>', '</summary>').replace(/<\/div>\s*$/, '</details>');
-}
-
 /* ───────── 종목: 고점 대비 하락 카드(52주 고점·전고점·역대 낙폭) ───────── */
 function ddEpisodes(c, thr) {   // 가격은 유한한 양수만 들어온다고 가정(호출 전에 정리)   // 고점→바닥→회복 구간 중 낙폭이 thr 이상인 것
   const eps = []; let pk = 0, tr = 0, inDD = false;

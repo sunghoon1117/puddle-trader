@@ -343,7 +343,7 @@ def earnings(sym, cal, today):
     past = []
     for r in rows:
         m, d, y = r["dateReported"].split("/")
-        day = f"{y}-{int(m):02d}-{int(d):02d}"
+        day = f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
         i = next((k for k in range(len(px["d"]) - 1, -1, -1) if px["d"][k] <= day), None)
         # 장전·장후 어느 쪽 발표든 포함되도록 '발표 전 거래일 종가 → 발표 다음 거래일 종가'
         move = px["c"][i + 1] / px["c"][i - 1] - 1 if i and i + 1 < len(px["c"]) else None
@@ -370,6 +370,8 @@ def main():
     if "--force" not in sys.argv and time.time() - status.get("t", 0) < REFRESH_H * 3600:
         # 새로 받지 않아도 배포본의 파일은 이어받아야 하므로 저장소에 복사해 둔다
         for f in status.get("files", []):
+            if not re.fullmatch(r"[A-Za-z0-9_=-][A-Za-z0-9_.=-]*\.json", str(f)):   # 파일 이름 형태만(배포본 값이 경로를 벗어나지 못하게)
+                continue
             v = site_or_local("pos/" + f, None)
             if v is not None:
                 dump("pos/" + f, v)

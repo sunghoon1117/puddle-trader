@@ -17,3 +17,13 @@ puddle-trader-guide/
 backup*.json
 puddle-trader-backup*
 sec_*.txt
+
+# 키·자격 증명 파일
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+*service-account*.json
+*service_account*.json

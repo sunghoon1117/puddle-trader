@@ -1,9 +1,11 @@
-"""웅덩이 트레이더 로컬 서버: 정적 파일 + 시세 자동 갱신(백그라운드) + 프록시.
+"""디벨롭 로컬 서버: 앱 파일 + 시세 자동 갱신(백그라운드) + 프록시.
+- 앱에 필요한 파일(아래 APP_FILES 와 data/*.json)만 내준다. .git·worker·tools 등은 404.
+- 이 PC(또는 --lan 이면 이 PC 의 LAN 주소)를 Host 로 부른 요청만 받는다(다른 웹페이지의 DNS 우회 방지).
   python server.py [포트=8777]
 - 시작 시 및 5분마다(미국 장중 2분마다) data/ 를 자동 갱신 → 앱은 data/manifest.json 변화만 보고 따라간다.
 - 같은 와이파이의 휴대폰은 출력되는 LAN 주소로 접속.
 """
-import http.server, socketserver, urllib.request, urllib.parse, json, os, socket, sys, time, threading, subprocess
+import http.server, socketserver, urllib.request, urllib.parse, json, os, re, socket, sys, time, threading, subprocess
 
 PORT = int(next((a for a in sys.argv[1:] if a.isdigit()), 8777))
 LAN = "--lan" in sys.argv   # 기본은 이 PC 에서만 열림(휴대폰 테스트는 --lan)
@@ -12,6 +14,21 @@ UA = {"User-Agent": "puddle-trader/1.0 (personal research)"}
 CACHE = {}
 TTL = 120
 STATE = {"last": 0, "running": False, "msg": ""}
+# 화면 파일을 새로 만들면 여기·sw.js·배포 워크플로에 함께 추가한다
+APP_FILES = {"index.html", "guide.html", "styles.css", "app.js", "detail.js", "weekend.js", "positions.js", "engine.js", "bt-worker.js", "sw.js",
+             "manifest.webmanifest", "version.json", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"}
+DATA_FILE = re.compile(r"data/(?:(?:px|pos|tracker)/)?[A-Za-z0-9_=-][A-Za-z0-9_.=-]*\.json")
+RANGES = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
+ALLOWED_HOSTS = set()   # 시작할 때 채움
+
+
+def allowed_path(url_path):
+    p = urllib.parse.unquote(url_path).lstrip("/") or "index.html"
+    return p in APP_FILES or bool(DATA_FILE.fullmatch(p))
+
+
+def allowed_hosts(port, lan=None):
+    return {f"{h}:{port}" for h in ["localhost", "127.0.0.1", "[::1]"] + ([lan] if lan else [])}
 
 
 def market_open_utc():
@@ -41,10 +58,28 @@ class H(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-Content-Type-Options", "nosniff")
         super().end_headers()
 
+    def host_ok(self):
+        if (self.headers.get("Host") or "").lower() in ALLOWED_HOSTS:
+            return True
+        self.send_error(403)
+        return False
+
+    def send_head(self):   # 정적 파일(GET·HEAD)은 허용 목록만
+        if not allowed_path(urllib.parse.urlparse(self.path).path):
+            self.send_error(404)
+            return None
+        return super().send_head()
+
+    def do_HEAD(self):
+        if self.host_ok():
+            super().do_HEAD()
+
     def do_GET(self):
+        if not self.host_ok():
+            return
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         if u.path == "/api/chart":
@@ -62,8 +97,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def chart(self, q):
         sym = (q.get("s", [""])[0] or "").strip().upper()
         rng = q.get("range", ["10y"])[0]
-        if not sym or len(sym) > 15 or not all(c.isalnum() or c in "^.-=" for c in sym):
-            return self.send_json(400, {"error": "bad symbol"})
+        if not sym or len(sym) > 15 or not all(c.isalnum() or c in "^.-=" for c in sym) or rng not in RANGES:
+            return self.send_json(400, {"error": "bad request"})
         key = (sym, rng)
         hit = CACHE.get(key)
         if hit and time.time() - hit[0] < TTL:
@@ -73,6 +108,8 @@ class H(http.server.SimpleHTTPRequestHandler):
             try:
                 with urllib.request.urlopen(urllib.request.Request(f"https://{host}/v8/finance/chart/{urllib.parse.quote(sym)}?{qs}", headers=UA), timeout=15) as r:
                     data = r.read()
+                if len(CACHE) > 500:
+                    CACHE.clear()
                 CACHE[key] = (time.time(), data)
                 return self.send_bytes(200, data)
             except Exception as e:
@@ -83,7 +120,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         from concurrent.futures import ThreadPoolExecutor
         syms = [s.strip().upper() for s in (q.get("s", [""])[0]).split(",") if s.strip()][:30]
         rng = q.get("range", ["5d"])[0]
-        if not syms or not all(all(c.isalnum() or c in "^.-=" for c in s) and len(s) <= 15 for s in syms) or not rng.isalnum():
+        if not syms or not all(all(c.isalnum() or c in "^.-=" for c in s) and len(s) <= 15 for s in syms) or rng not in RANGES:
             return self.send_json(400, {"error": "bad request"})
 
         def one(sym):
@@ -140,6 +177,7 @@ def lan_ip():
 
 
 if __name__ == "__main__":
+    ALLOWED_HOSTS.update(allowed_hosts(PORT, lan_ip() if LAN else None))
     threading.Thread(target=updater, daemon=True).start()
     print(f"PC     : http://localhost:{PORT}")
     if LAN:

@@ -1,4 +1,4 @@
-const V = 'dv-v4';   // 앱 파일이 바뀌면 이 값이 바뀌어 새 서비스 워커로 교체되고, 열려 있는 앱이 자동으로 새로고침됨
+const V = 'dv-v5';   // 앱 파일이 바뀌면 이 값이 바뀌어 새 서비스 워커로 교체되고, 열려 있는 앱이 자동으로 새로고침됨
 const SHELL = ['./', 'index.html', 'guide.html', 'styles.css', 'app.js', 'detail.js', 'weekend.js', 'positions.js', 'engine.js', 'bt-worker.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => { })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

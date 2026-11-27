@@ -255,7 +255,9 @@ def positions(cik, acc, period):
     for it in root.iter():
         if _tag(it) != "infoTable":
             continue
-        cusip, pc = _txt(it, "cusip"), _txt(it, "putCall") or ""
+        cusip, pc = _txt(it, "cusip"), (_txt(it, "putCall") or "").strip().title()
+        if pc not in ("Put", "Call"):
+            pc = ""
         p = pos.setdefault(cusip + pc, {"cusip": cusip, "name": _txt(it, "nameOfIssuer"), "putCall": pc, "value": 0.0, "shares": 0.0})
         p["value"] += float(_txt(it, "value") or 0) * mult; p["shares"] += float(_txt(it, "sshPrnamt") or 0)
     return list(pos.values())
